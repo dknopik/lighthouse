@@ -6,14 +6,7 @@ use bls::SignatureSet;
 use ssz::DecodeError;
 use std::borrow::Cow;
 use tree_hash::TreeHash;
-use types::{
-    AggregateSignature, AttesterSlashing, BeaconBlockRef, BeaconState, BeaconStateError, ChainSpec,
-    DepositData, Domain, Epoch, EthSpec, ExecPayload, Fork, Hash256, InconsistentFork,
-    IndexedAttestation, ProposerSlashing, PublicKey, PublicKeyBytes, Signature,
-    SignedAggregateAndProof, SignedBeaconBlock, SignedBeaconBlockHeader,
-    SignedContributionAndProof, SignedRoot, SignedVoluntaryExit, SigningData, Slot, SyncAggregate,
-    SyncAggregatorSelectionData, Unsigned,
-};
+use types::{AggregateSignature, AttesterSlashing, BeaconBlockRef, BeaconState, BeaconStateError, ChainSpec, DepositData, Domain, Epoch, EthSpec, ExecPayload, Fork, Hash256, InconsistentFork, IndexedAttestation, ProposerSlashing, PublicKey, PublicKeyBytes, Signature, SignedAggregateAndProof, SignedBeaconBlock, SignedBeaconBlockHeader, SignedBlobsSidecar, SignedContributionAndProof, SignedRoot, SignedVoluntaryExit, SigningData, Slot, SyncAggregate, SyncAggregatorSelectionData, Unsigned};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -146,6 +139,34 @@ where
 
     Ok(SignatureSet::single_pubkey(
         signed_block.signature(),
+        get_pubkey(proposer_index as usize).ok_or(Error::ValidatorUnknown(proposer_index))?,
+        message,
+    ))
+}
+
+/// A signature set that is valid if a blobs sidecar was signed by the expected block producer.
+pub fn blobs_sidecar_signature_set<'a, T, F>(
+    state: &'a BeaconState<T>,
+    get_pubkey: F,
+    signed_sidecar: &'a SignedBlobsSidecar<T,>,
+    spec: &'a ChainSpec,
+) -> Result<SignatureSet<'a>>
+    where
+        T: EthSpec,
+        F: Fn(usize) -> Option<Cow<'a, PublicKey>>,
+{
+    let sidecar = &signed_sidecar.message;
+    let domain = spec.get_domain(
+        sidecar.beacon_block_slot.epoch(T::slots_per_epoch()),
+        Domain::BlobsSidecar,
+        &state.fork(),
+        state.genesis_validators_root(),
+    );
+    let message = sidecar.signing_root(domain);
+    let proposer_index = state.get_beacon_proposer_index(sidecar.beacon_block_slot, spec)? as u64;
+
+    Ok(SignatureSet::single_pubkey(
+        &signed_sidecar.signature,
         get_pubkey(proposer_index as usize).ok_or(Error::ValidatorUnknown(proposer_index))?,
         message,
     ))

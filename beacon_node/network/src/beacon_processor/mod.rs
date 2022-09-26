@@ -45,9 +45,8 @@ use beacon_chain::{BeaconChain, BeaconChainTypes, GossipVerifiedBlock};
 use derivative::Derivative;
 use futures::stream::{Stream, StreamExt};
 use futures::task::Poll;
-use lighthouse_network::rpc::methods::BlobsByRangeRequest;
 use lighthouse_network::{
-    rpc::{BlocksByRangeRequest, BlocksByRootRequest, StatusMessage},
+    rpc::{BlobsSidecarsByRangeRequest, BlocksByRangeRequest, BlocksByRootRequest, StatusMessage},
     Client, MessageId, NetworkGlobals, PeerId, PeerRequestId,
 };
 use logging::TimeLatch;
@@ -63,10 +62,9 @@ use task_executor::TaskExecutor;
 use tokio::sync::mpsc;
 use types::{
     Attestation, AttesterSlashing, Hash256, ProposerSlashing, SignedAggregateAndProof,
-    SignedBeaconBlock, SignedContributionAndProof, SignedVoluntaryExit, SubnetId,
-    SyncCommitteeMessage, SyncSubnetId,
+    SignedBeaconBlock, SignedBlobsSidecar, SignedContributionAndProof, SignedVoluntaryExit,
+    SubnetId, SyncCommitteeMessage, SyncSubnetId,
 };
-use types::signed_blobs_sidecar::SignedBlobsSidecar;
 use work_reprocessing_queue::{
     spawn_reprocess_scheduler, QueuedAggregate, QueuedRpcBlock, QueuedUnaggregate, ReadyWork,
 };
@@ -157,6 +155,10 @@ const MAX_BLOCKS_BY_RANGE_QUEUE_LEN: usize = 1_024;
 /// The maximum number of queued `BlocksByRootRequest` objects received from the network RPC that
 /// will be stored before we start dropping them.
 const MAX_BLOCKS_BY_ROOTS_QUEUE_LEN: usize = 1_024;
+
+/// The maximum number of queued `BlobsByRangeRequest` objects received from the network RPC that
+/// will be stored before we start dropping them.
+const MAX_BLOBS_BY_RANGE_QUEUE_LEN: usize = 1_024;
 
 /// The name of the manager tokio task.
 const MANAGER_TASK_NAME: &str = "beacon_processor_manager";
@@ -582,7 +584,7 @@ impl<T: BeaconChainTypes> WorkEvent<T> {
     pub fn blobs_by_range_request(
         peer_id: PeerId,
         request_id: PeerRequestId,
-        request: BlobsByRangeRequest,
+        request: BlobsSidecarsByRangeRequest,
     ) -> Self {
         Self {
             drop_during_sync: false,
@@ -777,8 +779,8 @@ pub enum Work<T: BeaconChainTypes> {
     BlobsByRangeRequest {
         peer_id: PeerId,
         request_id: PeerRequestId,
-        request: BlobsByRangeRequest,
-    }
+        request: BlobsSidecarsByRangeRequest,
+    },
 }
 
 impl<T: BeaconChainTypes> Work<T> {
@@ -802,7 +804,7 @@ impl<T: BeaconChainTypes> Work<T> {
             Work::Status { .. } => STATUS_PROCESSING,
             Work::BlocksByRangeRequest { .. } => BLOCKS_BY_RANGE_REQUEST,
             Work::BlocksByRootsRequest { .. } => BLOCKS_BY_ROOTS_REQUEST,
-            Work::BlobsByRangeRequest {..} => BLOBS_BY_RANGE_REQUEST,
+            Work::BlobsByRangeRequest { .. } => BLOBS_BY_RANGE_REQUEST,
             Work::UnknownBlockAttestation { .. } => UNKNOWN_BLOCK_ATTESTATION,
             Work::UnknownBlockAggregate { .. } => UNKNOWN_BLOCK_AGGREGATE,
         }
@@ -947,7 +949,7 @@ impl<T: BeaconChainTypes> BeaconProcessor<T> {
         let mut status_queue = FifoQueue::new(MAX_STATUS_QUEUE_LEN);
         let mut bbrange_queue = FifoQueue::new(MAX_BLOCKS_BY_RANGE_QUEUE_LEN);
         let mut bbroots_queue = FifoQueue::new(MAX_BLOCKS_BY_ROOTS_QUEUE_LEN);
-        let mut blbrange_queue = FifoQueue::new(MAX_BLOCKS_BY_ROOTS_QUEUE_LEN);
+        let mut blbrange_queue = FifoQueue::new(MAX_BLOBS_BY_RANGE_QUEUE_LEN);
 
         // Channels for sending work to the re-process scheduler (`work_reprocessing_tx`) and to
         // receive them back once they are ready (`ready_work_rx`).
@@ -1674,9 +1676,9 @@ impl<T: BeaconChainTypes> BeaconProcessor<T> {
             Work::BlobsByRangeRequest {
                 peer_id,
                 request_id,
-                request
+                request,
             } => task_spawner.spawn_blocking_with_manual_send_idle(move |send_idle_on_drop| {
-                worker.handle_blobs_by_range_request(
+                worker.handle_blobs_sidecars_by_range_request(
                     sub_executor,
                     send_idle_on_drop,
                     peer_id,

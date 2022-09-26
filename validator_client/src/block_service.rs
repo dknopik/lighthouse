@@ -328,13 +328,13 @@ impl<T: SlotClock + 'static, E: EthSpec> BlockService<T, E> {
 
         let strict_fee_recipient = self.strict_fee_recipient;
         // Request block from first responsive beacon node.
-        let block = self
+        let (block, sidecar) = self
             .beacon_nodes
             .first_success(
                 RequireSynced::No,
                 OfflineOnFailure::Yes,
                 |beacon_node| async move {
-                    let block = match Payload::block_type() {
+                    let (block, sidecar) = match Payload::block_type() {
                         BlockType::Full => {
                             let _get_timer = metrics::start_timer_vec(
                                 &metrics::BLOCK_SERVICE_TIMES,
@@ -360,7 +360,7 @@ impl<T: SlotClock + 'static, E: EthSpec> BlockService<T, E> {
                                 &metrics::BLOCK_SERVICE_TIMES,
                                 &[metrics::BLINDED_BEACON_BLOCK_HTTP_GET],
                             );
-                            beacon_node
+                            (beacon_node
                                 .get_validator_blinded_blocks::<E, Payload>(
                                     slot,
                                     randao_reveal_ref,
@@ -373,7 +373,7 @@ impl<T: SlotClock + 'static, E: EthSpec> BlockService<T, E> {
                                         e
                                     ))
                                 })?
-                                .data
+                                .data, None)
                         }
                     };
 
@@ -395,14 +395,14 @@ impl<T: SlotClock + 'static, E: EthSpec> BlockService<T, E> {
                         ));
                     }
 
-                    Ok::<_, BlockError>(block)
+                    Ok::<_, BlockError>((block, sidecar))
                 },
             )
             .await?;
 
-        let signed_block = self_ref
+        let (signed_block, signed_sidecar) = self_ref
             .validator_store
-            .sign_block::<Payload>(*validator_pubkey_ref, block, current_slot)
+            .sign_block::<Payload>(*validator_pubkey_ref, block, sidecar, current_slot)
             .await
             .map_err(|e| BlockError::Recoverable(format!("Unable to sign block: {:?}", e)))?;
 
@@ -419,7 +419,7 @@ impl<T: SlotClock + 'static, E: EthSpec> BlockService<T, E> {
                                 &[metrics::BEACON_BLOCK_HTTP_POST],
                             );
                             beacon_node
-                                .post_beacon_blocks(&signed_block)
+                                .post_beacon_blocks(&signed_block, &signed_sidecar)
                                 .await
                                 .map_err(|e| {
                                     BlockError::Irrecoverable(format!(

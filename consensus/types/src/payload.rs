@@ -1,4 +1,4 @@
-use crate::{test_utils::TestRandom, test_utils::RngCore, *};
+use crate::{test_utils::TestRandom, *};
 use derivative::Derivative;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -8,8 +8,6 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use test_random_derive::TestRandom;
 use tree_hash::TreeHash;
-use execution_payload::BlobsBundle;
-use core::hash::Hasher;
 
 #[derive(Debug)]
 pub enum BlockType {
@@ -32,7 +30,6 @@ pub trait ExecPayload<T: EthSpec>:
     + Hash
     + TryFrom<ExecutionPayloadHeader<T>>
     + From<ExecutionPayload<T>>
-    + From<FullPayload<T>>
     + Send
     + 'static
 {
@@ -173,12 +170,6 @@ impl<T: EthSpec> From<ExecutionPayload<T>> for BlindedPayload<T> {
     }
 }
 
-impl<T: EthSpec> From<FullPayload<T>> for BlindedPayload<T> {
-    fn from(full_payload: FullPayload<T>) -> Self {
-        full_payload.execution_payload.into()
-    }
-}
-
 impl<T: EthSpec> TreeHash for BlindedPayload<T> {
     fn tree_hash_type() -> tree_hash::TreeHashType {
         <ExecutionPayloadHeader<T>>::tree_hash_type()
@@ -227,24 +218,16 @@ impl<T: EthSpec> Encode for BlindedPayload<T> {
     }
 }
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize, Derivative)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, TestRandom, Derivative)]
 #[derivative(PartialEq, Hash(bound = "T: EthSpec"))]
 #[serde(bound = "T: EthSpec")]
 pub struct FullPayload<T: EthSpec> {
-    pub execution_payload: ExecutionPayload<T>
-}
-
-impl <T: EthSpec> TestRandom for FullPayload<T> {
-    fn random_for_test(rng: &mut impl RngCore) -> Self {
-        todo!()
-    }
+    pub execution_payload: ExecutionPayload<T>,
 }
 
 impl<T: EthSpec> From<ExecutionPayload<T>> for FullPayload<T> {
     fn from(execution_payload: ExecutionPayload<T>) -> Self {
-        Self { 
-            execution_payload
-        }
+        Self { execution_payload }
     }
 }
 
@@ -281,7 +264,7 @@ impl<T: EthSpec> Decode for FullPayload<T> {
 
     fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
         Ok(FullPayload {
-            execution_payload: Decode::from_ssz_bytes(bytes)?
+            execution_payload: Decode::from_ssz_bytes(bytes)?,
         })
     }
 }

@@ -685,7 +685,7 @@ where
 
         let randao_reveal = self.sign_randao_reveal(&state, proposer_index, slot);
 
-        let (block, state) = self
+        let (block, _, state) = self
             .chain
             .produce_block_on_state(
                 state,
@@ -736,7 +736,7 @@ where
 
         let pre_state = state.clone();
 
-        let (block, state) = self
+        let (block, _, state) = self
             .chain
             .produce_block_on_state(
                 state,
@@ -1458,7 +1458,7 @@ where
         self.set_current_slot(slot);
         let block_hash: SignedBeaconBlockHash = self
             .chain
-            .process_block(Arc::new(block), todo!(), CountUnrealized::True)
+            .process_block(Arc::new(block), None, CountUnrealized::True)
             .await?
             .into();
         self.chain.recompute_head_at_current_slot().await;
@@ -1471,7 +1471,7 @@ where
     ) -> Result<SignedBeaconBlockHash, BlockError<E>> {
         let block_hash: SignedBeaconBlockHash = self
             .chain
-            .process_block(Arc::new(block), todo!(),CountUnrealized::True)
+            .process_block(Arc::new(block), None, CountUnrealized::True)
             .await?
             .into();
         self.chain.recompute_head_at_current_slot().await;

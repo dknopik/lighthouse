@@ -12,12 +12,12 @@ use std::ops::Deref;
 use std::sync::Arc;
 use strum::IntoStaticStr;
 use superstruct::superstruct;
-use types::{Epoch, EthSpec, Hash256, SignedBeaconBlock, Slot};
-use types::blobs_sidecar::BlobsSidecar;
+use types::{BlobsSidecar, Epoch, EthSpec, Hash256, SignedBeaconBlock, Slot};
 
 /// Maximum number of blocks in a single request.
 pub type MaxRequestBlocks = U1024;
 pub const MAX_REQUEST_BLOCKS: u64 = 1024;
+pub const MAX_REQUEST_BLOBS: u64 = 128;
 
 /// Maximum length of error message.
 pub type MaxErrorLen = U256;
@@ -205,9 +205,9 @@ pub struct BlocksByRangeRequest {
     pub count: u64,
 }
 
-/// Request a number of beacon blobs from a peer.
+/// Request a number of blobs sidecars from a peer.
 #[derive(Encode, Decode, Clone, Debug, PartialEq)]
-pub struct BlobsByRangeRequest {
+pub struct BlobsSidecarsByRangeRequest {
     /// The starting slot to request blobs.
     pub start_slot: u64,
 
@@ -273,8 +273,8 @@ pub enum ResponseTermination {
     /// Blocks by root stream termination.
     BlocksByRoot,
 
-    // Blobs by range stream termination.
-    BlobsByRange
+    /// Blobs by range stream termination.
+    BlobsByRange,
 }
 
 /// The structured response containing a result/code indicating success or failure
@@ -406,7 +406,7 @@ impl<T: EthSpec> std::fmt::Display for RPCResponse<T> {
             }
             RPCResponse::BlocksByRoot(block) => {
                 write!(f, "BlocksByRoot: Block slot: {}", block.slot())
-            } 
+            }
             RPCResponse::BlobsByRange(blob) => {
                 write!(f, "BlobsByRange: Blob slot: {}", blob.len())
             }

@@ -81,11 +81,7 @@ use std::time::Duration;
 use store::{Error as DBError, HotStateSummary, KeyValueStore, StoreOp};
 use task_executor::JoinHandle;
 use tree_hash::TreeHash;
-use types::{
-    BeaconBlockRef, BeaconState, BeaconStateError, BlindedPayload, ChainSpec, CloneConfig, Epoch,
-    EthSpec, ExecutionBlockHash, Hash256, InconsistentFork, PublicKey, PublicKeyBytes,
-    RelativeEpoch, SignedBeaconBlock, SignedBeaconBlockHeader, Slot,
-};
+use types::{BeaconBlockRef, BeaconState, BeaconStateError, BlindedPayload, ChainSpec, CloneConfig, Epoch, EthSpec, ExecutionBlockHash, Hash256, InconsistentFork, PublicKey, PublicKeyBytes, RelativeEpoch, SignedBeaconBlock, SignedBeaconBlockHeader, SignedBlobsSidecar, Slot};
 
 pub const POS_PANDA_BANNER: &str = r#"
     ,,,         ,,,                                               ,,,         ,,,
@@ -144,7 +140,6 @@ pub enum BlockError<T: EthSpec> {
         present_slot: Slot,
         block_slot: Slot,
     },
-    MissingSidecar,
     /// The block state_root does not match the generated state.
     ///
     /// ## Peer scoring
@@ -278,7 +273,7 @@ pub enum BlockError<T: EthSpec> {
     /// The peer sent us an invalid block, but I'm not really sure how to score this in an
     /// "optimistic" sync world.
     ParentExecutionPayloadInvalid { parent_root: Hash256 },
-
+    MissingSidecar,
 }
 
 /// Returned when block validation failed due to some issue verifying
@@ -594,6 +589,12 @@ pub struct SignatureVerifiedBlock<T: BeaconChainTypes> {
     parent: Option<PreProcessingSnapshot<T::EthSpec>>,
 }
 
+/// A wrapper around a `SignatureVerifiedSidecar` that indicates that its signature has been
+/// verified. (note that there is no `GossipVerifiedSidecar`, as these are equivalent)
+pub struct SignatureVerifiedSidecar<T: BeaconChainTypes> {
+    sidecar: Arc<SignedBlobsSidecar<T::EthSpec>>,
+}
+
 /// Used to await the result of executing payload with a remote EE.
 type PayloadVerificationHandle<E> =
     JoinHandle<Option<Result<PayloadVerificationOutcome, BlockError<E>>>>;
@@ -611,6 +612,7 @@ type PayloadVerificationHandle<E> =
 /// `BeaconChain` immediately after it is instantiated.
 pub struct ExecutionPendingBlock<T: BeaconChainTypes> {
     pub block: Arc<SignedBeaconBlock<T::EthSpec>>,
+    pub sidecar: Option<Arc<SignedBlobsSidecar<T::EthSpec>>>,
     pub block_root: Hash256,
     pub state: BeaconState<T::EthSpec>,
     pub parent_block: SignedBeaconBlock<T::EthSpec, BlindedPayload<T::EthSpec>>,
@@ -625,8 +627,9 @@ pub trait IntoExecutionPendingBlock<T: BeaconChainTypes>: Sized {
     fn into_execution_pending_block(
         self,
         chain: &Arc<BeaconChain<T>>,
+        sidecar: Option<SignatureVerifiedSidecar<T>>,
     ) -> Result<ExecutionPendingBlock<T>, BlockError<T::EthSpec>> {
-        self.into_execution_pending_block_slashable(chain)
+        self.into_execution_pending_block_slashable(chain, sidecar)
             .map(|execution_pending| {
                 // Supply valid block to slasher.
                 if let Some(slasher) = chain.slasher.as_ref() {
@@ -641,6 +644,7 @@ pub trait IntoExecutionPendingBlock<T: BeaconChainTypes>: Sized {
     fn into_execution_pending_block_slashable(
         self,
         chain: &Arc<BeaconChain<T>>,
+        sidecar: Option<SignatureVerifiedSidecar<T>>,
     ) -> Result<ExecutionPendingBlock<T>, BlockSlashInfo<BlockError<T::EthSpec>>>;
 
     fn block(&self) -> &SignedBeaconBlock<T::EthSpec>;
@@ -880,10 +884,11 @@ impl<T: BeaconChainTypes> IntoExecutionPendingBlock<T> for GossipVerifiedBlock<T
     fn into_execution_pending_block_slashable(
         self,
         chain: &Arc<BeaconChain<T>>,
+        sidecar: Option<SignatureVerifiedSidecar<T>>,
     ) -> Result<ExecutionPendingBlock<T>, BlockSlashInfo<BlockError<T::EthSpec>>> {
         let execution_pending =
             SignatureVerifiedBlock::from_gossip_verified_block_check_slashable(self, chain)?;
-        execution_pending.into_execution_pending_block_slashable(chain)
+        execution_pending.into_execution_pending_block_slashable(chain, sidecar)
     }
 
     fn block(&self) -> &SignedBeaconBlock<T::EthSpec> {
@@ -1000,6 +1005,7 @@ impl<T: BeaconChainTypes> IntoExecutionPendingBlock<T> for SignatureVerifiedBloc
     fn into_execution_pending_block_slashable(
         self,
         chain: &Arc<BeaconChain<T>>,
+        sidecar: Option<SignatureVerifiedSidecar<T>>,
     ) -> Result<ExecutionPendingBlock<T>, BlockSlashInfo<BlockError<T::EthSpec>>> {
         let header = self.block.signed_block_header();
         let (parent, block) = if let Some(parent) = self.parent {
@@ -1011,6 +1017,7 @@ impl<T: BeaconChainTypes> IntoExecutionPendingBlock<T> for SignatureVerifiedBloc
 
         ExecutionPendingBlock::from_signature_verified_components(
             block,
+            sidecar.map(|s| s.sidecar),
             self.block_root,
             parent,
             chain,
@@ -1029,17 +1036,48 @@ impl<T: BeaconChainTypes> IntoExecutionPendingBlock<T> for Arc<SignedBeaconBlock
     fn into_execution_pending_block_slashable(
         self,
         chain: &Arc<BeaconChain<T>>,
+        sidecar: Option<SignatureVerifiedSidecar<T>>,
     ) -> Result<ExecutionPendingBlock<T>, BlockSlashInfo<BlockError<T::EthSpec>>> {
         // Perform an early check to prevent wasting time on irrelevant blocks.
         let block_root = check_block_relevancy(&self, None, chain)
             .map_err(|e| BlockSlashInfo::SignatureNotChecked(self.signed_block_header(), e))?;
 
         SignatureVerifiedBlock::check_slashable(self, block_root, chain)?
-            .into_execution_pending_block_slashable(chain)
+            .into_execution_pending_block_slashable(chain, sidecar)
     }
 
     fn block(&self) -> &SignedBeaconBlock<T::EthSpec> {
         self
+    }
+}
+
+impl<T: BeaconChainTypes> SignatureVerifiedSidecar<T> {
+    /// Instantiates `Self`, a wrapper that indicates that the signature is valid (i.e., signed by
+    /// the correct public key).
+    ///
+    /// Returns an error if the sidecar is invalid, or if the sidecar was unable to be verified.
+    pub fn new(
+        sidecar: Arc<SignedBlobsSidecar<T::EthSpec>>,
+        state: &BeaconState<T::EthSpec>,
+        chain: &BeaconChain<T>,
+    ) -> Result<Self, BlockError<T::EthSpec>> {
+        let pubkey_cache = get_validator_pubkey_cache(chain)?;
+
+        let mut verifier = get_signature_verifier(&state, &pubkey_cache, &chain.spec);
+
+        verifier.include_blobs_sidecar(&sidecar)?;
+
+        if verifier.verify().is_ok() {
+            Ok(Self {
+                sidecar
+            })
+        } else {
+            Err(BlockError::InvalidSignature)
+        }
+    }
+
+    pub fn sidecar(&self) -> &Arc<SignedBlobsSidecar<T::EthSpec>> {
+        &self.sidecar
     }
 }
 
@@ -1053,6 +1091,7 @@ impl<T: BeaconChainTypes> ExecutionPendingBlock<T> {
     /// Returns an error if the block is invalid, or if the block was unable to be verified.
     pub fn from_signature_verified_components(
         block: Arc<SignedBeaconBlock<T::EthSpec>>,
+        sidecar: Option<Arc<SignedBlobsSidecar<T::EthSpec>>>,
         block_root: Hash256,
         parent: PreProcessingSnapshot<T::EthSpec>,
         chain: &Arc<BeaconChain<T>>,
@@ -1338,6 +1377,7 @@ impl<T: BeaconChainTypes> ExecutionPendingBlock<T> {
         if let Err(err) = per_block_processing(
             &mut state,
             &block,
+            sidecar.as_ref().map(|sidecar| sidecar.as_ref()),
             Some(block_root),
             // Signatures were verified earlier in this function.
             BlockSignatureStrategy::NoVerification,
@@ -1383,6 +1423,7 @@ impl<T: BeaconChainTypes> ExecutionPendingBlock<T> {
 
         Ok(Self {
             block,
+            sidecar,
             block_root,
             state,
             parent_block: parent.beacon_block,

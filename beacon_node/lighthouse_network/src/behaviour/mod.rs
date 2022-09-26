@@ -9,8 +9,8 @@ use crate::peer_manager::{
     config::Config as PeerManagerCfg, peerdb::score::PeerAction, peerdb::score::ReportSource,
     ConnectionDirection, PeerManager, PeerManagerEvent,
 };
+use crate::rpc::methods::BlobsSidecarsByRangeRequest;
 use crate::rpc::*;
-use crate::rpc::methods::BlobsByRangeRequest;
 use crate::service::{Context as ServiceContext, METADATA_FILENAME};
 use crate::types::{
     subnet_from_topic_hash, GossipEncoding, GossipKind, GossipTopic, SnappyTransform, Subnet,
@@ -40,7 +40,6 @@ use libp2p::{
 };
 use slog::{crit, debug, o, trace, warn};
 use ssz::Encode;
-use types::blobs_sidecar::BlobsSidecar;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::Write;
@@ -51,9 +50,10 @@ use std::{
     sync::Arc,
     task::{Context, Poll},
 };
+use types::blobs_sidecar::BlobsSidecar;
 use types::{
     consts::altair::SYNC_COMMITTEE_SUBNET_COUNT, EnrForkId, EthSpec, ForkContext,
-    SignedBeaconBlock, Slot, SubnetId, SyncSubnetId, VariableList
+    SignedBeaconBlock, Slot, SubnetId, SyncSubnetId, VariableList,
 };
 
 use self::gossip_cache::GossipCache;
@@ -1342,7 +1342,7 @@ pub enum Request {
     /// A request blocks root request.
     BlocksByRoot(BlocksByRootRequest),
     /// A blobs by range request.
-    BlobsByRange(BlobsByRangeRequest),
+    BlobsByRange(BlobsSidecarsByRangeRequest),
 }
 
 impl<TSpec: EthSpec> std::convert::From<Request> for OutboundRequest<TSpec> {
@@ -1377,7 +1377,7 @@ pub enum Response<TSpec: EthSpec> {
     /// A response to a get BLOCKS_BY_ROOT request.
     BlocksByRoot(Option<Arc<SignedBeaconBlock<TSpec>>>),
     /// A response to a get BLOBS_BY_RANGE request
-    BlobsByRange(Option<Arc<VariableList<BlobsSidecar<TSpec>, TSpec::MaxRequestBlobsSidecars>>>)
+    BlobsByRange(Option<Arc<VariableList<BlobsSidecar<TSpec>, TSpec::MaxRequestBlobsSidecars>>>),
 }
 
 impl<TSpec: EthSpec> std::convert::From<Response<TSpec>> for RPCCodedResponse<TSpec> {
@@ -1394,7 +1394,7 @@ impl<TSpec: EthSpec> std::convert::From<Response<TSpec>> for RPCCodedResponse<TS
             Response::BlobsByRange(r) => match r {
                 Some(b) => RPCCodedResponse::Success(RPCResponse::BlobsByRange(b)),
                 None => RPCCodedResponse::StreamTermination(ResponseTermination::BlobsByRange),
-            }
+            },
             Response::Status(s) => RPCCodedResponse::Success(RPCResponse::Status(s)),
         }
     }

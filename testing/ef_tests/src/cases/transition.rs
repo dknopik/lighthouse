@@ -42,6 +42,11 @@ impl<E: EthSpec> LoadCase for TransitionTest<E> {
                 spec.altair_fork_epoch = Some(Epoch::new(0));
                 spec.bellatrix_fork_epoch = Some(metadata.fork_epoch);
             }
+            ForkName::Eip4844 => {
+                spec.altair_fork_epoch = Some(Epoch::new(0));
+                spec.bellatrix_fork_epoch = Some(Epoch::new(0));
+                spec.eip4844_fork_epoch = Some(metadata.fork_epoch);
+            }
         }
 
         // Load blocks
@@ -94,6 +99,7 @@ impl<E: EthSpec> Case for TransitionTest<E> {
                 per_block_processing(
                     &mut state,
                     block,
+                    None,
                     None,
                     BlockSignatureStrategy::VerifyBulk,
                     VerifyBlockRoot::True,

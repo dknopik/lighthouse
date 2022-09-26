@@ -30,6 +30,10 @@ pub mod beacon_block_body;
 pub mod beacon_block_header;
 pub mod beacon_committee;
 pub mod beacon_state;
+pub mod blob;
+pub mod blobs_bundle;
+pub mod blobs_sidecar;
+pub mod bls_field_element;
 pub mod builder_bid;
 pub mod chain_spec;
 pub mod checkpoint;
@@ -51,6 +55,8 @@ pub mod free_attestation;
 pub mod graffiti;
 pub mod historical_batch;
 pub mod indexed_attestation;
+pub mod kzg_commitment;
+pub mod kzg_proof;
 pub mod pending_attestation;
 pub mod proposer_preparation_data;
 pub mod proposer_slashing;
@@ -60,6 +66,7 @@ pub mod shuffling_id;
 pub mod signed_aggregate_and_proof;
 pub mod signed_beacon_block;
 pub mod signed_beacon_block_header;
+pub mod signed_blobs_sidecar;
 pub mod signed_contribution_and_proof;
 pub mod signed_voluntary_exit;
 pub mod signing_data;
@@ -92,13 +99,6 @@ pub mod slot_data;
 #[cfg(feature = "sqlite")]
 pub mod sqlite;
 
-pub mod kzg_commitment;
-pub mod kzg_proof;
-pub mod bls_field_element;
-pub mod blob;
-pub mod signed_blobs_sidecar;
-pub mod blobs_sidecar;
-
 use ethereum_types::{H160, H256};
 
 pub use crate::aggregate_and_proof::AggregateAndProof;
@@ -107,16 +107,20 @@ pub use crate::attestation_data::AttestationData;
 pub use crate::attestation_duty::AttestationDuty;
 pub use crate::attester_slashing::AttesterSlashing;
 pub use crate::beacon_block::{
-    BeaconBlock, BeaconBlockAltair, BeaconBlockBase, BeaconBlockMerge, BeaconBlockRef,
-    BeaconBlockRefMut, BeaconBlockEip4844
+    BeaconBlock, BeaconBlockAltair, BeaconBlockBase, BeaconBlockEip4844, BeaconBlockMerge,
+    BeaconBlockRef, BeaconBlockRefMut,
 };
 pub use crate::beacon_block_body::{
-    BeaconBlockBody, BeaconBlockBodyAltair, BeaconBlockBodyBase, BeaconBlockBodyMerge,
-    BeaconBlockBodyRef, BeaconBlockBodyRefMut, BeaconBlockBodyEip4844
+    BeaconBlockBody, BeaconBlockBodyAltair, BeaconBlockBodyBase, BeaconBlockBodyEip4844,
+    BeaconBlockBodyMerge, BeaconBlockBodyRef, BeaconBlockBodyRefMut,
 };
 pub use crate::beacon_block_header::BeaconBlockHeader;
 pub use crate::beacon_committee::{BeaconCommittee, OwnedBeaconCommittee};
 pub use crate::beacon_state::{BeaconTreeHashCache, Error as BeaconStateError, *};
+pub use crate::blob::Blob;
+pub use crate::blobs_bundle::BlobsBundle;
+pub use crate::blobs_sidecar::BlobsSidecar;
+pub use crate::bls_field_element::BlsFieldElement;
 pub use crate::chain_spec::{ChainSpec, Config, Domain};
 pub use crate::checkpoint::Checkpoint;
 pub use crate::config_and_preset::{
@@ -140,6 +144,8 @@ pub use crate::free_attestation::FreeAttestation;
 pub use crate::graffiti::{Graffiti, GRAFFITI_BYTES_LEN};
 pub use crate::historical_batch::HistoricalBatch;
 pub use crate::indexed_attestation::IndexedAttestation;
+pub use crate::kzg_commitment::KzgCommitment;
+pub use crate::kzg_proof::KzgProof;
 pub use crate::participation_flags::ParticipationFlags;
 pub use crate::participation_list::ParticipationList;
 pub use crate::payload::{BlindedPayload, BlockType, ExecPayload, FullPayload};
@@ -152,10 +158,11 @@ pub use crate::selection_proof::SelectionProof;
 pub use crate::shuffling_id::AttestationShufflingId;
 pub use crate::signed_aggregate_and_proof::SignedAggregateAndProof;
 pub use crate::signed_beacon_block::{
-    SignedBeaconBlock, SignedBeaconBlockAltair, SignedBeaconBlockBase, SignedBeaconBlockHash,
-    SignedBeaconBlockMerge, SignedBlindedBeaconBlock, SignedBeaconBlockEip4844,
+    SignedBeaconBlock, SignedBeaconBlockAltair, SignedBeaconBlockBase, SignedBeaconBlockEip4844,
+    SignedBeaconBlockHash, SignedBeaconBlockMerge, SignedBlindedBeaconBlock,
 };
 pub use crate::signed_beacon_block_header::SignedBeaconBlockHeader;
+pub use crate::signed_blobs_sidecar::SignedBlobsSidecar;
 pub use crate::signed_contribution_and_proof::SignedContributionAndProof;
 pub use crate::signed_voluntary_exit::SignedVoluntaryExit;
 pub use crate::signing_data::{SignedRoot, SigningData};

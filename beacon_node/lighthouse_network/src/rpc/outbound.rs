@@ -38,7 +38,7 @@ pub enum OutboundRequest<TSpec: EthSpec> {
     Goodbye(GoodbyeReason),
     BlocksByRange(OldBlocksByRangeRequest),
     BlocksByRoot(BlocksByRootRequest),
-    BlobsByRange(BlobsByRangeRequest),
+    BlobsByRange(BlobsSidecarsByRangeRequest),
     Ping(Ping),
     MetaData(PhantomData<TSpec>),
 }
@@ -76,9 +76,11 @@ impl<TSpec: EthSpec> OutboundRequest<TSpec> {
                 ProtocolId::new(Protocol::BlocksByRoot, Version::V2, Encoding::SSZSnappy),
                 ProtocolId::new(Protocol::BlocksByRoot, Version::V1, Encoding::SSZSnappy),
             ],
-            OutboundRequest::BlobsByRange(_) => vec![
-                ProtocolId::new(Protocol::BlocksByRoot, Version::V1, Encoding::SSZSnappy),
-            ],
+            OutboundRequest::BlobsByRange(_) => vec![ProtocolId::new(
+                Protocol::BlocksByRoot,
+                Version::V1,
+                Encoding::SSZSnappy,
+            )],
             OutboundRequest::Ping(_) => vec![ProtocolId::new(
                 Protocol::Ping,
                 Version::V1,

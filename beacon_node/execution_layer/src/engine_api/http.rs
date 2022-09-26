@@ -3,14 +3,13 @@
 use super::*;
 use crate::auth::Auth;
 use crate::json_structures::*;
-use eth2::lighthouse::Eth1Block;
 use reqwest::header::CONTENT_TYPE;
 use sensitive_url::SensitiveUrl;
 use serde::de::DeserializeOwned;
 use serde_json::json;
 
 use std::time::Duration;
-use types::{EthSpec, FullPayload, execution_payload::BlobsBundle};
+use types::{BlobsBundle, EthSpec};
 
 pub use deposit_log::{DepositLog, Log};
 pub use reqwest::Client;
@@ -675,7 +674,11 @@ impl HttpJsonRpc {
         let params = json!([JsonPayloadIdRequest::from(payload_id)]);
 
         let response: JsonBlobBundlesV1<T> = self
-            .rpc_request(ENGINE_GET_BLOBS_BUNDLE_V1, params, ENGINE_GET_BLOBS_BUNDLE_TIMEOUT)
+            .rpc_request(
+                ENGINE_GET_BLOBS_BUNDLE_V1,
+                params,
+                ENGINE_GET_BLOBS_BUNDLE_TIMEOUT,
+            )
             .await?;
 
         Ok(response.into())

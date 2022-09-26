@@ -7,7 +7,7 @@ use beacon_chain::{
     sync_committee_verification::{self, Error as SyncCommitteeError},
     validator_monitor::get_block_delay_ms,
     BeaconChainError, BeaconChainTypes, BlockError, CountUnrealized, ForkChoiceError,
-    GossipVerifiedBlock,
+    GossipVerifiedBlock, SignatureVerifiedSidecar, StateSkipConfig,
 };
 use lighthouse_network::{Client, MessageAcceptance, MessageId, PeerAction, PeerId, ReportSource};
 use slog::{crit, debug, error, info, trace, warn};
@@ -19,10 +19,9 @@ use store::hot_cold_store::HotColdDBError;
 use tokio::sync::mpsc;
 use types::{
     Attestation, AttesterSlashing, EthSpec, Hash256, IndexedAttestation, ProposerSlashing,
-    SignedAggregateAndProof, SignedBeaconBlock, SignedContributionAndProof, SignedVoluntaryExit,
-    Slot, SubnetId, SyncCommitteeMessage, SyncSubnetId,
+    SignedAggregateAndProof, SignedBeaconBlock, SignedBlobsSidecar, SignedContributionAndProof,
+    SignedVoluntaryExit, Slot, SubnetId, SyncCommitteeMessage, SyncSubnetId,
 };
-use types::signed_blobs_sidecar::SignedBlobsSidecar;
 
 use super::{
     super::work_reprocessing_queue::{
@@ -673,7 +672,6 @@ impl<T: BeaconChainTypes> Worker<T> {
             .await
         {
             let block_root = gossip_verified_block.block_root;
-
             if let Some(handle) = duplicate_cache.check_and_insert(block_root) {
                 self.process_gossip_verified_block(
                     peer_id,
@@ -760,9 +758,6 @@ impl<T: BeaconChainTypes> Worker<T> {
 
                 verified_block
             }
-            Err(BlockError::MissingSidecar) => {
-               todo!(); //is relevant?
-            }
             Err(BlockError::ParentUnknown(block)) => {
                 debug!(
                     self.log,
@@ -801,6 +796,10 @@ impl<T: BeaconChainTypes> Worker<T> {
                 debug!(self.log, "Could not verify block for gossip, ignoring the block";
                             "error" => %e);
                 self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
+                return None;
+            }
+            Err(e @ BlockError::MissingSidecar) => {
+                // currently can't be reached
                 return None;
             }
             Err(e @ BlockError::StateRootMismatch { .. })
@@ -920,29 +919,110 @@ impl<T: BeaconChainTypes> Worker<T> {
         verified_block: GossipVerifiedBlock<T>,
         reprocess_tx: mpsc::Sender<ReprocessQueueMessage<T>>,
         // This value is not used presently, but it might come in handy for debugging.
+        seen_duration: Duration,
+    ) {
+        let sidecar = if verified_block
+            .block
+            .message()
+            .body()
+            .blob_kzg_commitments()
+            .map(|committments| committments.is_empty())
+            .unwrap_or(true)
+        {
+            None
+        } else {
+            // we "take" here because either way the waiting sidecar is not valid anymore
+            if let Some(sidecar) = self.chain.sidecar_waiting_for_block.lock().take() {
+                if sidecar.sidecar().message.beacon_block_root == verified_block.block_root() {
+                    Some(sidecar)
+                } else {
+                    *self.chain.block_waiting_for_sidecar.lock() = Some(verified_block);
+                    return;
+                }
+            } else {
+                *self.chain.block_waiting_for_sidecar.lock() = Some(verified_block);
+                // we need the sidecar but don't have it yet
+                return;
+            }
+        };
+
+        self.process_verified_block_and_sidecar(
+            peer_id,
+            verified_block,
+            sidecar,
+            reprocess_tx,
+            seen_duration,
+        )
+        .await
+    }
+
+    pub async fn process_gossip_blobs_sidecar(
+        self,
+        message_id: MessageId,
+        peer_id: PeerId,
+        peer_client: Client,
+        sidecar: Arc<SignedBlobsSidecar<T::EthSpec>>,
+        reprocess_tx: mpsc::Sender<ReprocessQueueMessage<T>>,
+        duplicate_cache: DuplicateCache,
+        seen_duration: Duration,
+    ) {
+        // feels like a VERY hacky way to get the state. probably incorrect in non-trivial cases.
+        let state = match self.chain.state_at_slot(
+            sidecar.message.beacon_block_slot - 1,
+            StateSkipConfig::WithoutStateRoots,
+        ) {
+            Ok(state) => state,
+            Err(e) => {
+                error!(
+                    self.log,
+                    "Failed to get state for sidecar verification";
+                    "outcome" => ?e,
+                );
+                return
+            }
+        };
+
+        let sidecar = match SignatureVerifiedSidecar::new(sidecar, &state, &self.chain) {
+            Ok(sidecar) => sidecar,
+            Err(e) => {
+                debug!(
+                    self.log,
+                    "Failed to verify blobs sidecar";
+                    "outcome" => ?e,
+                );
+                return
+            }
+        };
+
+        let verified_block = self.chain.block_waiting_for_sidecar.lock().take();
+        if let Some(verified_block) = verified_block {
+            self.process_verified_block_and_sidecar(
+                peer_id,
+                verified_block,
+                Some(sidecar),
+                reprocess_tx,
+                seen_duration,
+            )
+            .await
+        } else {
+            *self.chain.sidecar_waiting_for_block.lock() = Some(sidecar);
+        }
+    }
+
+    pub async fn process_verified_block_and_sidecar(
+        self,
+        peer_id: PeerId,
+        verified_block: GossipVerifiedBlock<T>,
+        verified_sidecar: Option<SignatureVerifiedSidecar<T>>,
+        reprocess_tx: mpsc::Sender<ReprocessQueueMessage<T>>,
+        // This value is not used presently, but it might come in handy for debugging.
         _seen_duration: Duration,
     ) {
         let block: Arc<_> = verified_block.block.clone();
 
-        let sidecar = if verified_block.block.message()
-            .body().blob_kzg_commitments().map(|committments| committments.is_empty()).unwrap_or(true) {
-            None
-        } else if let Some(sidecar) = self.chain.sidecar_waiting_for_block.lock().as_ref() {
-            if sidecar.message.beacon_block_root == verified_block.block_root() {
-                Some(sidecar.clone())
-            } else {
-                *self.chain.block_waiting_for_sidecar.lock() = Some(verified_block);
-                return
-            }
-        } else {
-            *self.chain.block_waiting_for_sidecar.lock() = Some(verified_block);
-            // we need the sidecar but dont have it yet
-            return
-        };
-
         match self
             .chain
-            .process_block(verified_block, sidecar, CountUnrealized::True)
+            .process_block(verified_block, verified_sidecar, CountUnrealized::True)
             .await
         {
             Ok(block_root) => {
@@ -1006,92 +1086,6 @@ impl<T: BeaconChainTypes> Worker<T> {
                 );
             }
         };
-    }
-
-    pub async fn process_gossip_blobs_sidecar(
-        self,
-        message_id: MessageId,
-        peer_id: PeerId,
-        peer_client: Client,
-        blobs: Arc<SignedBlobsSidecar<T::EthSpec>>,
-        reprocess_tx: mpsc::Sender<ReprocessQueueMessage<T>>,
-        duplicate_cache: DuplicateCache,
-        seen_duration: Duration,
-    ) {
-        let verified_block = self.chain.block_waiting_for_sidecar.lock().take();
-        if let Some(verified_block) = verified_block {
-            let block = verified_block.block.clone();
-            if verified_block.block_root() == blobs.message.beacon_block_root {
-                match self
-                    .chain
-                    .process_block(verified_block, Some(blobs), CountUnrealized::True)
-                    .await
-                {
-                    Ok(block_root) => {
-                        metrics::inc_counter(&metrics::BEACON_PROCESSOR_GOSSIP_BLOCK_IMPORTED_TOTAL);
-
-                        if reprocess_tx
-                            .try_send(ReprocessQueueMessage::BlockImported(block_root))
-                            .is_err()
-                        {
-                            error!(
-                        self.log,
-                        "Failed to inform block import";
-                        "source" => "gossip",
-                        "block_root" => ?block_root,
-                    )
-                        };
-
-                        debug!(
-                    self.log,
-                    "Gossipsub block processed";
-                    "block" => ?block_root,
-                    "peer_id" => %peer_id
-                );
-
-                        self.chain.recompute_head_at_current_slot().await;
-                    }
-                    Err(BlockError::ParentUnknown { .. }) => {
-                        // Inform the sync manager to find parents for this block
-                        // This should not occur. It should be checked by `should_forward_block`
-                        error!(
-                    self.log,
-                    "Block with unknown parent attempted to be processed";
-                    "peer_id" => %peer_id
-                );
-                        self.send_sync_message(SyncMessage::UnknownBlock(peer_id, block));
-                    }
-                    Err(ref e @ BlockError::ExecutionPayloadError(ref epe)) if !epe.penalize_peer() => {
-                        debug!(
-                    self.log,
-                    "Failed to verify execution payload";
-                    "error" => %e
-                );
-                    }
-                    other => {
-                        debug!(
-                    self.log,
-                    "Invalid gossip beacon block";
-                    "outcome" => ?other,
-                    "block root" => ?block.canonical_root(),
-                    "block slot" => block.slot()
-                );
-                        self.gossip_penalize_peer(
-                            peer_id,
-                            PeerAction::MidToleranceError,
-                            "bad_gossip_block_ssz",
-                        );
-                        trace!(
-                    self.log,
-                    "Invalid gossip beacon block ssz";
-                    "ssz" => format_args!("0x{}", hex::encode(block.as_ssz_bytes())),
-                );
-                    }
-                };
-            }
-        } else {
-            *self.chain.sidecar_waiting_for_block.lock() = Some(blobs);
-        }
     }
 
     pub fn process_gossip_voluntary_exit(

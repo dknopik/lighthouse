@@ -290,9 +290,10 @@ pub fn get_config<E: EthSpec>(
         // Parse a single JWT secret, logging warnings if multiple are supplied.
         //
         // JWTs are required if `--execution-endpoint` is supplied.
-        let secret_files: String = clap_utils::parse_required(cli_args, "execution-jwt")?;
-        let secret_file =
-            parse_only_one_value(&secret_files, PathBuf::from_str, "--execution-jwt", log)?;
+        // todo(eip4844) lazy hack for devnet compatibility
+        //let secret_files: String = clap_utils::parse_required(cli_args, "execution-jwt")?;
+        //let secret_file =
+        //    parse_only_one_value(&secret_files, PathBuf::from_str, "--execution-jwt", log)?;
 
         // Parse and set the payload builder, if any.
         if let Some(endpoint) = cli_args.value_of("builder") {
@@ -302,7 +303,8 @@ pub fn get_config<E: EthSpec>(
         }
 
         // Set config values from parse values.
-        el_config.secret_files = vec![secret_file.clone()];
+        // todo(eip4844) lazy hack for devnet compatibility
+        //el_config.secret_files = vec![secret_file.clone()];
         el_config.execution_endpoints = vec![execution_endpoint.clone()];
         el_config.suggested_fee_recipient =
             clap_utils::parse_optional(cli_args, "suggested-fee-recipient")?;
@@ -320,12 +322,14 @@ pub fn get_config<E: EthSpec>(
                     --eth1-endpoints has been deprecated for post-merge configurations"
             );
         }
-        client_config.eth1.endpoints = Eth1Endpoint::Auth {
-            endpoint: execution_endpoint,
-            jwt_path: secret_file,
-            jwt_id: el_config.jwt_id.clone(),
-            jwt_version: el_config.jwt_version.clone(),
-        };
+        // todo(eip4844) lazy hack for devnet compatibility
+        //client_config.eth1.endpoints = Eth1Endpoint::Auth {
+        //    endpoint: execution_endpoint,
+        //    jwt_path: secret_file,
+        //    jwt_id: el_config.jwt_id.clone(),
+        //    jwt_version: el_config.jwt_version.clone(),
+        //};
+        client_config.eth1.endpoints = Eth1Endpoint::NoAuth(vec![execution_endpoint.clone()]);
 
         // Store the EL config in the client config.
         client_config.execution_layer = Some(el_config);

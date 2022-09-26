@@ -54,34 +54,39 @@ impl TreeHash for bool {
     }
 }
 
-/// Only valid for byte types less than 32 bytes.
-macro_rules! impl_for_lt_32byte_u8_array {
-    ($len: expr) => {
-        impl TreeHash for [u8; $len] {
-            fn tree_hash_type() -> TreeHashType {
-                TreeHashType::Vector
-            }
+impl<const LEN: usize> TreeHash for [u8; LEN] {
+    fn tree_hash_type() -> TreeHashType {
+        TreeHashType::Vector
+    }
 
-            fn tree_hash_packed_encoding(&self) -> Vec<u8> {
-                unreachable!("bytesN should never be packed.")
-            }
+    fn tree_hash_packed_encoding(&self) -> Vec<u8> {
+        unreachable!("Vector should never be packed.")
+    }
 
-            fn tree_hash_packing_factor() -> usize {
-                unreachable!("bytesN should never be packed.")
-            }
+    fn tree_hash_packing_factor() -> usize {
+        unreachable!("Vector should never be packed.")
+    }
 
-            fn tree_hash_root(&self) -> Hash256 {
-                let mut result = [0; 32];
-                result[0..$len].copy_from_slice(&self[..]);
-                Hash256::from_slice(&result)
-            }
+    fn tree_hash_root(&self) -> Hash256 {
+        if LEN < 32 {
+            let mut result = [0; 32];
+            result[0..LEN].copy_from_slice(&self[..]);
+            Hash256::from_slice(&result)
+        } else if LEN == 32 {
+            Hash256::from_slice(self)
+        } else {
+            let mut hasher = MerkleHasher::with_leaves((LEN + 31) / 32);
+
+            hasher
+                .write(self)
+                .expect("exact length array should not have too many leaves");
+
+            hasher
+                .finish()
+                .expect("exact length array should not have too many leaves")
         }
-    };
+    }
 }
-
-impl_for_lt_32byte_u8_array!(4);
-impl_for_lt_32byte_u8_array!(32);
-impl_for_lt_32byte_u8_array!(48);
 
 impl TreeHash for U128 {
     fn tree_hash_type() -> TreeHashType {
@@ -199,5 +204,11 @@ mod test {
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             ]
         );
+    }
+
+    #[test]
+    fn aaaaah() {
+        assert_eq!([1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0].tree_hash_root(),
+                   [1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0].tree_hash_root())
     }
 }

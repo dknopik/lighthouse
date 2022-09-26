@@ -247,6 +247,7 @@ pub enum BlockProductionError {
     BlockingFailed(execution_layer::Error),
     TerminalPoWBlockLookupFailed(execution_layer::Error),
     GetPayloadFailed(execution_layer::Error),
+    GetBlobsBundleFailed(execution_layer::Error),
     FailedToReadFinalizedBlock(store::Error),
     MissingFinalizedBlock(Hash256),
     BlockTooLarge(usize),
@@ -254,6 +255,8 @@ pub enum BlockProductionError {
     ShuttingDown,
     MissingSyncAggregate,
     MissingExecutionPayload,
+    MissingBlobsSidecar,
+    TooManyBlobs,
     TokioJoin(tokio::task::JoinError),
     BeaconChain(BeaconChainError),
 }

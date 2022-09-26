@@ -311,6 +311,7 @@ where
     #[test_random(default)]
     #[derivative(Clone(clone_with = "clone_default"))]
     pub tree_hash_cache: BeaconTreeHashCache<T>,
+// todo(dknopik): maybe add blobs here???
 }
 
 impl<T: EthSpec> Clone for BeaconState<T> {

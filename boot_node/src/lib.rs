@@ -61,6 +61,9 @@ pub fn run(
         EthSpecId::Mainnet => {
             main::<types::MainnetEthSpec>(lh_matches, bn_matches, eth2_network_config, log)
         }
+        EthSpecId::Eip4844Devnet => {
+            main::<types::Eip4844DevnetEthSpec>(lh_matches, bn_matches, eth2_network_config, log)
+        }
         EthSpecId::Gnosis => {
             main::<types::GnosisEthSpec>(lh_matches, bn_matches, eth2_network_config, log)
         }

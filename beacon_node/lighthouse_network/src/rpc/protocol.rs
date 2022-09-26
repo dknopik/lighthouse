@@ -21,8 +21,8 @@ use tokio_util::{
     compat::{Compat, FuturesAsyncReadCompatExt},
 };
 use types::{
-    BeaconBlock, BeaconBlockAltair, BeaconBlockBase, BeaconBlockMerge, EthSpec, ForkContext,
-    ForkName, Hash256, MainnetEthSpec, Signature, SignedBeaconBlock,
+    BeaconBlock, BeaconBlockAltair, BeaconBlockBase, BeaconBlockEip4844, BeaconBlockMerge, EthSpec,
+    ForkContext, ForkName, Hash256, MainnetEthSpec, Signature, SignedBeaconBlock,
 };
 
 lazy_static! {
@@ -71,9 +71,17 @@ lazy_static! {
     + types::ExecutionPayload::<MainnetEthSpec>::max_execution_payload_size() // adding max size of execution payload (~16gb)
     + ssz::BYTES_PER_LENGTH_OFFSET; // Adding the additional ssz offset for the `ExecutionPayload` field
 
+    pub static ref SIGNED_BEACON_BLOCK_EIP4844_MIN: usize = SignedBeaconBlock::<MainnetEthSpec>::from_block(
+        BeaconBlock::Eip4844(BeaconBlockEip4844::<MainnetEthSpec>::empty(&MainnetEthSpec::default_spec())),
+        Signature::empty(),
+    )
+    .as_ssz_bytes()
+    .len();
+
     pub static ref SIGNED_BEACON_BLOCK_EIP4844_MAX: usize =
-    // Size of a full altair block
-    *SIGNED_BEACON_BLOCK_MERGE_MAX + 999999999; //TODO
+    // Size of a full merge block plus the difference between a minimal merge and eip4844 block
+    *SIGNED_BEACON_BLOCK_MERGE_MAX
+    + (*SIGNED_BEACON_BLOCK_EIP4844_MIN - *SIGNED_BEACON_BLOCK_MERGE_MIN);
 
     pub static ref BLOCKS_BY_ROOT_REQUEST_MIN: usize =
         VariableList::<Hash256, MaxRequestBlocks>::from(Vec::<Hash256>::new())
@@ -106,7 +114,7 @@ lazy_static! {
 pub(crate) const MAX_RPC_SIZE: usize = 1_048_576; // 1M
 /// The maximum bytes that can be sent across the RPC post-merge.
 pub(crate) const MAX_RPC_SIZE_POST_MERGE: usize = 10 * 1_048_576; // 10M
-pub(crate) const MAX_RPC_SIZE_POST_EIP4844: usize = 20 * 1_048_576; // 10M
+pub(crate) const MAX_RPC_SIZE_POST_EIP4844: usize = 20 * 1_048_576; // 20M
 /// The protocol prefix the RPC protocol id.
 const PROTOCOL_PREFIX: &str = "/eth2/beacon_chain/req";
 /// Time allowed for the first byte of a request to arrive before we time out (Time To First Byte).
@@ -434,7 +442,7 @@ pub enum InboundRequest<TSpec: EthSpec> {
     Goodbye(GoodbyeReason),
     BlocksByRange(OldBlocksByRangeRequest),
     BlocksByRoot(BlocksByRootRequest),
-    BlobsByRange(BlobsByRangeRequest),
+    BlobsByRange(BlobsSidecarsByRangeRequest),
     Ping(Ping),
     MetaData(PhantomData<TSpec>),
 }
@@ -474,9 +482,11 @@ impl<TSpec: EthSpec> InboundRequest<TSpec> {
                 ProtocolId::new(Protocol::BlocksByRoot, Version::V2, Encoding::SSZSnappy),
                 ProtocolId::new(Protocol::BlocksByRoot, Version::V1, Encoding::SSZSnappy),
             ],
-            InboundRequest::BlobsByRange(_) => vec![
-                ProtocolId::new(Protocol::BlocksByRoot, Version::V1, Encoding::SSZSnappy),
-            ],
+            InboundRequest::BlobsByRange(_) => vec![ProtocolId::new(
+                Protocol::BlocksByRoot,
+                Version::V1,
+                Encoding::SSZSnappy,
+            )],
             InboundRequest::Ping(_) => vec![ProtocolId::new(
                 Protocol::Ping,
                 Version::V1,

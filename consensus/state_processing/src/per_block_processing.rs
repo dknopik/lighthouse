@@ -90,6 +90,7 @@ pub enum VerifyBlockRoot {
 pub fn per_block_processing<T: EthSpec, Payload: ExecPayload<T>>(
     state: &mut BeaconState<T>,
     signed_block: &SignedBeaconBlock<T, Payload>,
+    signed_blobs_sidecar: Option<&SignedBlobsSidecar<T>>,
     block_root: Option<Hash256>,
     block_signature_strategy: BlockSignatureStrategy,
     verify_block_root: VerifyBlockRoot,
@@ -170,6 +171,8 @@ pub fn per_block_processing<T: EthSpec, Payload: ExecPayload<T>>(
             spec,
         )?;
     }
+
+    // todo(dknopik) sidecar validation
 
     Ok(())
 }

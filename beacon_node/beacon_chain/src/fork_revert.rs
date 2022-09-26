@@ -173,6 +173,7 @@ pub fn reset_fork_choice_to_finalization<E: EthSpec, Hot: ItemStore<E>, Cold: It
             &mut state,
             &block,
             None,
+            None,
             BlockSignatureStrategy::NoVerification,
             VerifyBlockRoot::True,
             spec,

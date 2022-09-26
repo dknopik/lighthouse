@@ -90,6 +90,8 @@ where
     // Execution
     #[superstruct(only(Merge, Eip4844))]
     pub latest_execution_payload_header: ExecutionPayloadHeader<T>,
+
+// todo(dknopik) blobs?
 }
 
 /// Implement the conversion function from BeaconState -> PartialBeaconState.

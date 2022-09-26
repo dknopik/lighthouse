@@ -12,6 +12,7 @@ use tree_hash::TreeHash;
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Domain {
     BeaconProposer,
+    BlobsSidecar,
     BeaconAttester,
     Randao,
     Deposit,
@@ -97,6 +98,7 @@ pub struct ChainSpec {
      * Signature domains
      */
     pub(crate) domain_beacon_proposer: u32,
+    pub(crate) domain_blobs_sidecar: u32,
     pub(crate) domain_beacon_attester: u32,
     pub(crate) domain_randao: u32,
     pub(crate) domain_deposit: u32,
@@ -244,9 +246,8 @@ impl ChainSpec {
                     Some(fork_epoch) if epoch >= fork_epoch => ForkName::Altair,
                     _ => ForkName::Base,
                 },
-            }
+            },
         }
-        
     }
 
     /// Returns the fork version for a named fork.
@@ -339,6 +340,7 @@ impl ChainSpec {
     pub fn get_domain_constant(&self, domain: Domain) -> u32 {
         match domain {
             Domain::BeaconProposer => self.domain_beacon_proposer,
+            Domain::BlobsSidecar => self.domain_blobs_sidecar,
             Domain::BeaconAttester => self.domain_beacon_attester,
             Domain::Randao => self.domain_randao,
             Domain::Deposit => self.domain_deposit,
@@ -523,6 +525,7 @@ impl ChainSpec {
              * Signature domains
              */
             domain_beacon_proposer: 0,
+            domain_blobs_sidecar: 10,
             domain_beacon_attester: 1,
             domain_randao: 2,
             domain_deposit: 3,
@@ -564,7 +567,7 @@ impl ChainSpec {
             domain_sync_committee: 7,
             domain_sync_committee_selection_proof: 8,
             domain_contribution_and_proof: 9,
-            altair_fork_version: [0x01, 0x00, 0x0f, 0xfd],
+            altair_fork_version: [0x01, 0x00, 0x00, 0x00],
             altair_fork_epoch: Some(Epoch::new(74240)),
 
             /*
@@ -575,7 +578,7 @@ impl ChainSpec {
             min_slashing_penalty_quotient_bellatrix: u64::checked_pow(2, 5)
                 .expect("pow does not overflow"),
             proportional_slashing_multiplier_bellatrix: 3,
-            bellatrix_fork_version: [0x02, 0x00, 0x0f, 0xfd],
+            bellatrix_fork_version: [0x02, 0x00, 0x00, 0x00],
             bellatrix_fork_epoch: Some(Epoch::new(144896)),
             terminal_total_difficulty: Uint256::from_dec_str("58750000000000000000000")
                 .expect("terminal_total_difficulty is a valid integer"),
@@ -587,7 +590,7 @@ impl ChainSpec {
              * Eip4844 hard fork params
              */
             eip4844_fork_epoch: Some(Epoch::new(3)),
-            eip4844_fork_version: [0x83, 0x00, 0x0f, 0xfd],
+            eip4844_fork_version: [0x03, 0x00, 0x00, 0x00],
 
             /*
              * Network specific
@@ -734,6 +737,7 @@ impl ChainSpec {
              * Signature domains
              */
             domain_beacon_proposer: 0,
+            domain_blobs_sidecar: 10,
             domain_beacon_attester: 1,
             domain_randao: 2,
             domain_deposit: 3,
@@ -877,6 +881,14 @@ pub struct Config {
     #[serde(deserialize_with = "deserialize_fork_epoch")]
     pub bellatrix_fork_epoch: Option<MaybeQuoted<Epoch>>,
 
+    #[serde(default = "default_bellatrix_fork_version")]
+    #[serde(with = "eth2_serde_utils::bytes_4_hex")]
+    eip4844_fork_version: [u8; 4],
+    #[serde(default)]
+    #[serde(serialize_with = "serialize_fork_epoch")]
+    #[serde(deserialize_with = "deserialize_fork_epoch")]
+    pub eip4844_fork_epoch: Option<MaybeQuoted<Epoch>>,
+
     #[serde(with = "eth2_serde_utils::quoted_u64")]
     seconds_per_slot: u64,
     #[serde(with = "eth2_serde_utils::quoted_u64")]
@@ -982,6 +994,7 @@ impl Config {
         match self.preset_base.as_str() {
             "minimal" => Some(EthSpecId::Minimal),
             "mainnet" => Some(EthSpecId::Mainnet),
+            "eip4844devnet" => Some(EthSpecId::Eip4844Devnet),
             "gnosis" => Some(EthSpecId::Gnosis),
             _ => None,
         }
@@ -1009,6 +1022,11 @@ impl Config {
             bellatrix_fork_version: spec.bellatrix_fork_version,
             bellatrix_fork_epoch: spec
                 .bellatrix_fork_epoch
+                .map(|epoch| MaybeQuoted { value: epoch }),
+
+            eip4844_fork_version: spec.eip4844_fork_version,
+            eip4844_fork_epoch: spec
+                .eip4844_fork_epoch
                 .map(|epoch| MaybeQuoted { value: epoch }),
 
             seconds_per_slot: spec.seconds_per_slot,
@@ -1055,6 +1073,8 @@ impl Config {
             altair_fork_epoch,
             bellatrix_fork_epoch,
             bellatrix_fork_version,
+            eip4844_fork_epoch,
+            eip4844_fork_version,
             seconds_per_slot,
             seconds_per_eth1_block,
             min_validator_withdrawability_delay,
@@ -1085,6 +1105,8 @@ impl Config {
             altair_fork_epoch: altair_fork_epoch.map(|q| q.value),
             bellatrix_fork_epoch: bellatrix_fork_epoch.map(|q| q.value),
             bellatrix_fork_version,
+            eip4844_fork_epoch: eip4844_fork_epoch.map(|q| q.value),
+            eip4844_fork_version,
             seconds_per_slot,
             seconds_per_eth1_block,
             min_validator_withdrawability_delay,

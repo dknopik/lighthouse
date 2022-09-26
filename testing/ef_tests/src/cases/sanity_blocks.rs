@@ -95,6 +95,7 @@ impl<E: EthSpec> Case for SanityBlocks<E> {
                     &mut indiv_state,
                     signed_block,
                     None,
+                    None,
                     BlockSignatureStrategy::VerifyIndividual,
                     VerifyBlockRoot::True,
                     spec,
@@ -103,6 +104,7 @@ impl<E: EthSpec> Case for SanityBlocks<E> {
                 per_block_processing(
                     &mut bulk_state,
                     signed_block,
+                    None,
                     None,
                     BlockSignatureStrategy::VerifyBulk,
                     VerifyBlockRoot::True,

@@ -258,6 +258,7 @@ where
                 &mut self.state,
                 block,
                 None,
+                None,
                 self.block_sig_strategy,
                 verify_block_root,
                 self.spec,

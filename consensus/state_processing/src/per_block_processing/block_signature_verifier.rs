@@ -6,10 +6,7 @@ use crate::per_block_processing::errors::{AttestationInvalid, BlockOperationErro
 use bls::{verify_signature_sets, PublicKey, PublicKeyBytes, SignatureSet};
 use rayon::prelude::*;
 use std::borrow::Cow;
-use types::{
-    BeaconState, BeaconStateError, ChainSpec, EthSpec, ExecPayload, Hash256, IndexedAttestation,
-    SignedBeaconBlock,
-};
+use types::{BeaconState, BeaconStateError, ChainSpec, EthSpec, ExecPayload, Hash256, IndexedAttestation, SignedBeaconBlock, SignedBlobsSidecar};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -329,6 +326,20 @@ where
                 self.sets.push(signature_set);
             }
         }
+        Ok(())
+    }
+
+    /// Include the signature of a blobs sidecar for verification
+    pub fn include_blobs_sidecar(
+        &mut self,
+        sidecar: &'a SignedBlobsSidecar<T>,
+    ) -> Result<()> {
+        self.sets.push(blobs_sidecar_signature_set(
+            self.state,
+            &self.get_pubkey,
+            sidecar,
+            self.spec,
+        )?);
         Ok(())
     }
 

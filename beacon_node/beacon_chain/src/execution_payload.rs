@@ -24,10 +24,23 @@ use state_processing::per_block_processing::{
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tree_hash::TreeHash;
-use types::{*, execution_payload::BlobsBundle};
+use types::*;
 
-pub type PreparePayloadResult<Payload> = Result<Payload, BlockProductionError>;
-pub type PreparePayloadHandle<Payload> = JoinHandle<Option<PreparePayloadResult<Payload>>>;
+pub type PreparePayloadResult<Payload, E> =
+    Result<PreparedPayload<Payload, E>, BlockProductionError>;
+pub type PreparePayloadHandle<Payload, E> = JoinHandle<Option<PreparePayloadResult<Payload, E>>>;
+
+/// A finished payload and maybe a BlobsBundle.
+///
+/// This is currently combined into a single struct instead of a separate "PrepareBlobsBundleHandle"
+/// as AFAIK the calls have to be done sequentially - so I combined this into a single result.
+///
+/// Also, they consider to combine engine_getPayloadV1 with engine_getBlobsBundleV1 into
+/// engine_getPayloadV2 anyways.
+pub struct PreparedPayload<Payload, E: EthSpec> {
+    pub(crate) payload: Payload,
+    pub(crate) blobs_bundle: Option<BlobsBundle<E>>,
+}
 
 #[derive(PartialEq)]
 pub enum AllowOptimisticImport {
@@ -351,7 +364,8 @@ pub fn get_execution_payload<
     state: &BeaconState<T::EthSpec>,
     proposer_index: u64,
     builder_params: BuilderParams,
-) -> Result<PreparePayloadHandle<Payload>, BlockProductionError> {
+    get_blobs_bundle: bool,
+) -> Result<PreparePayloadHandle<Payload, T::EthSpec>, BlockProductionError> {
     // Compute all required values from the `state` now to avoid needing to pass it into a spawned
     // task.
     let spec = &chain.spec;
@@ -369,7 +383,7 @@ pub fn get_execution_payload<
         .clone()
         .spawn_handle(
             async move {
-                prepare_execution_payload::<T, Payload>(
+                let payload = prepare_execution_payload::<T, Payload>(
                     &chain,
                     is_merge_transition_complete,
                     timestamp,
@@ -378,7 +392,32 @@ pub fn get_execution_payload<
                     latest_execution_payload_header_block_hash,
                     builder_params,
                 )
-                .await
+                .await?;
+
+                let blobs_bundle = if get_blobs_bundle {
+                    let execution_layer = chain
+                        .execution_layer
+                        .as_ref()
+                        .ok_or(BlockProductionError::ExecutionLayerMissing)?;
+                    Some(
+                        execution_layer
+                            .get_blob_bundles(
+                                latest_execution_payload_header_block_hash,
+                                timestamp,
+                                random,
+                                proposer_index,
+                            )
+                            .await
+                            .map_err(BlockProductionError::GetBlobsBundleFailed)?,
+                    )
+                } else {
+                    None
+                };
+
+                Ok(PreparedPayload {
+                    payload,
+                    blobs_bundle,
+                })
             },
             "get_execution_payload",
         )
@@ -482,14 +521,6 @@ where
         )
         .await
         .map_err(BlockProductionError::GetPayloadFailed)?;
-
-    /* 
-    TODO: fetch blob bundles from el engine for block building
-    let suggested_fee_recipient = execution_layer.get_suggested_fee_recipient(proposer_index).await;
-    let blobs = execution_layer.get_blob_bundles(parent_hash, timestamp, random, suggested_fee_recipient)
-    .await
-    .map_err(BlockProductionError::GetPayloadFailed)?;
-    */
 
     Ok(execution_payload)
 }

@@ -19,7 +19,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use task_executor::{ShutdownReason, TaskExecutor};
 use tokio::runtime::{Builder as RuntimeBuilder, Runtime};
-use types::{EthSpec, GnosisEthSpec, MainnetEthSpec, MinimalEthSpec};
+use types::{Eip4844DevnetEthSpec, EthSpec, GnosisEthSpec, MainnetEthSpec, MinimalEthSpec};
 
 #[cfg(target_family = "unix")]
 use {
@@ -81,6 +81,19 @@ impl EnvironmentBuilder<MainnetEthSpec> {
             runtime: None,
             log: None,
             eth_spec_instance: MainnetEthSpec,
+            eth2_config: Eth2Config::mainnet(),
+            eth2_network_config: None,
+        }
+    }
+}
+
+impl EnvironmentBuilder<Eip4844DevnetEthSpec> {
+    /// Creates a new builder using the `eip4844devnet` eth2 specification.
+    pub fn eip4844devnet() -> Self {
+        Self {
+            runtime: None,
+            log: None,
+            eth_spec_instance: Eip4844DevnetEthSpec,
             eth2_config: Eth2Config::mainnet(),
             eth2_network_config: None,
         }

@@ -90,6 +90,7 @@ where
                     per_block_processing(
                         &mut state,
                         &block,
+                        None,
                         Some(block_root),
                         BlockSignatureStrategy::NoVerification,
                         VerifyBlockRoot::True,

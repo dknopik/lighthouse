@@ -431,7 +431,8 @@ pub fn cli_app<'a, 'b>() -> App<'a, 'b> {
                        JSON-RPC connection. Uses the same endpoint to populate the \
                        deposit cache.")
                 .takes_value(true)
-                .requires("execution-jwt")
+                // todo(eip4844) lazy hack for devnet compatibility
+                //.requires("execution-jwt")
         )
         .arg(
             Arg::with_name("execution-jwt")

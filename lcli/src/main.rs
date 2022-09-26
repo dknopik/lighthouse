@@ -723,6 +723,7 @@ fn main() {
         .and_then(|eth_spec_id| match eth_spec_id {
             EthSpecId::Minimal => run(EnvironmentBuilder::minimal(), &matches),
             EthSpecId::Mainnet => run(EnvironmentBuilder::mainnet(), &matches),
+            EthSpecId::Eip4844Devnet => run(EnvironmentBuilder::mainnet(), &matches),
             EthSpecId::Gnosis => run(EnvironmentBuilder::gnosis(), &matches),
         });
 

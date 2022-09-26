@@ -14,6 +14,7 @@ pub type U5000 = UInt<UInt<UInt<U625, B0>, B0>, B0>; // 625 * 8 = 5000
 const MAINNET: &str = "mainnet";
 const MINIMAL: &str = "minimal";
 pub const GNOSIS: &str = "gnosis";
+const EIP4844DEVNET: &str = "eip4844devnet";
 
 /// Used to identify one of the `EthSpec` instances defined here.
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -22,6 +23,7 @@ pub enum EthSpecId {
     Mainnet,
     Minimal,
     Gnosis,
+    Eip4844Devnet,
 }
 
 impl FromStr for EthSpecId {
@@ -32,6 +34,7 @@ impl FromStr for EthSpecId {
             MAINNET => Ok(EthSpecId::Mainnet),
             MINIMAL => Ok(EthSpecId::Minimal),
             GNOSIS => Ok(EthSpecId::Gnosis),
+            EIP4844DEVNET => Ok(EthSpecId::Eip4844Devnet),
             _ => Err(format!("Unknown eth spec: {}", s)),
         }
     }
@@ -43,6 +46,7 @@ impl fmt::Display for EthSpecId {
             EthSpecId::Mainnet => MAINNET,
             EthSpecId::Minimal => MINIMAL,
             EthSpecId::Gnosis => GNOSIS,
+            EthSpecId::Eip4844Devnet => EIP4844DEVNET,
         };
         write!(f, "{}", s)
     }
@@ -253,6 +257,7 @@ impl EthSpec for MainnetEthSpec {
     type SubnetBitfieldLength = U64;
     type MaxValidatorsPerCommittee = U2048;
     type GenesisEpoch = U0;
+    // TODO we needed to set this as they use 8 slots per epoch in the devnet, but mainnet spec otherwise
     type SlotsPerEpoch = U8;
     type EpochsPerEth1VotingPeriod = U64;
     type SlotsPerHistoricalRoot = U8192;
@@ -274,8 +279,10 @@ impl EthSpec for MainnetEthSpec {
     type MinGasLimit = U5000;
     type MaxExtraDataBytes = U32;
     type SyncSubcommitteeSize = U128; // 512 committee size / 4 sync committee subnet count
-    type MaxPendingAttestations = U4096; // 128 max attestations * 32 slots per epoch
-    type SlotsPerEth1VotingPeriod = U2048; // 64 epochs * 32 slots per epoch
+    // TODO also adjusted
+    type MaxPendingAttestations = U1024; // 128 max attestations * 8 slots per epoch
+    // TODO also adjusted
+    type SlotsPerEth1VotingPeriod = U512; // 64 epochs * 8 slots per epoch
     type MaxBlobsPerBlock = U16;
     type FieldElementsPerBlob = U4096;
     type MaxRequestBlobsSidecars = U128;
@@ -335,6 +342,56 @@ impl EthSpec for MinimalEthSpec {
 
     fn spec_name() -> EthSpecId {
         EthSpecId::Minimal
+    }
+}
+
+/// special spec for eip4844 devnet: mainnetspec with 8 slots per epoch
+// todo(eip4844) lazy hack for devnet compatibility
+#[cfg_attr(feature = "arbitrary-fuzz", derive(arbitrary::Arbitrary))]
+#[derive(Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
+pub struct Eip4844DevnetEthSpec;
+
+impl EthSpec for Eip4844DevnetEthSpec {
+    type SlotsPerEpoch = U8;
+    type MaxPendingAttestations = U1024; // 128 max attestations * 8 slots per epoch
+    type SlotsPerEth1VotingPeriod = U512; // 64 epochs * 8 slots per epoch
+
+    params_from_eth_spec!(MainnetEthSpec {
+        JustificationBitsLength,
+        SubnetBitfieldLength,
+        SyncCommitteeSubnetCount,
+        MaxValidatorsPerCommittee,
+        GenesisEpoch,
+        HistoricalRootsLimit,
+        ValidatorRegistryLimit,
+        MaxProposerSlashings,
+        MaxAttesterSlashings,
+        MaxAttestations,
+        MaxDeposits,
+        MaxVoluntaryExits,
+        MaxBytesPerTransaction,
+        MaxTransactionsPerPayload,
+        BytesPerLogsBloom,
+        GasLimitDenominator,
+        MinGasLimit,
+        MaxExtraDataBytes,
+        MaxBlobsPerBlock,
+        FieldElementsPerBlob,
+        MaxRequestBlobsSidecars,
+        EpochsPerEth1VotingPeriod,
+        SlotsPerHistoricalRoot,
+        EpochsPerHistoricalVector,
+        EpochsPerSlashingsVector,
+        SyncCommitteeSize,
+        SyncSubcommitteeSize
+    });
+
+    fn default_spec() -> ChainSpec {
+        ChainSpec::mainnet()
+    }
+
+    fn spec_name() -> EthSpecId {
+        EthSpecId::Eip4844Devnet
     }
 }
 

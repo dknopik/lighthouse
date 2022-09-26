@@ -17,14 +17,7 @@ use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::Arc;
 use task_executor::TaskExecutor;
-use types::{
-    attestation::Error as AttestationError, graffiti::GraffitiString, Address, AggregateAndProof,
-    Attestation, BeaconBlock, BlindedPayload, ChainSpec, ContributionAndProof, Domain, Epoch,
-    EthSpec, ExecPayload, Fork, Graffiti, Hash256, Keypair, PublicKeyBytes, SelectionProof,
-    Signature, SignedAggregateAndProof, SignedBeaconBlock, SignedContributionAndProof, SignedRoot,
-    SignedValidatorRegistrationData, Slot, SyncAggregatorSelectionData, SyncCommitteeContribution,
-    SyncCommitteeMessage, SyncSelectionProof, SyncSubnetId, ValidatorRegistrationData,
-};
+use types::{attestation::Error as AttestationError, graffiti::GraffitiString, Address, AggregateAndProof, Attestation, BeaconBlock, BlindedPayload, BlobsSidecar, ChainSpec, ContributionAndProof, Domain, Epoch, EthSpec, ExecPayload, Fork, Graffiti, Hash256, Keypair, PublicKeyBytes, SelectionProof, Signature, SignedAggregateAndProof, SignedBeaconBlock, SignedContributionAndProof, SignedRoot, SignedValidatorRegistrationData, Slot, SyncAggregatorSelectionData, SyncCommitteeContribution, SyncCommitteeMessage, SyncSelectionProof, SyncSubnetId, ValidatorRegistrationData, SignedBlobsSidecar};
 use validator_dir::ValidatorDir;
 
 pub use crate::doppelganger_service::DoppelgangerStatus;
@@ -458,8 +451,9 @@ impl<T: SlotClock + 'static, E: EthSpec> ValidatorStore<T, E> {
         &self,
         validator_pubkey: PublicKeyBytes,
         block: BeaconBlock<E, Payload>,
+        sidecar: Option<BlobsSidecar<E>>,
         current_slot: Slot,
-    ) -> Result<SignedBeaconBlock<E, Payload>, Error> {
+    ) -> Result<(SignedBeaconBlock<E, Payload>, Option<SignedBlobsSidecar<E>>), Error> {
         // Make sure the block slot is not higher than the current slot to avoid potential attacks.
         if block.slot() > current_slot {
             warn!(
@@ -499,7 +493,30 @@ impl<T: SlotClock + 'static, E: EthSpec> ValidatorStore<T, E> {
                         &self.task_executor,
                     )
                     .await?;
-                Ok(SignedBeaconBlock::from_block(block, signature))
+                let signed_block = SignedBeaconBlock::from_block(block, signature);
+
+                // not sure what sanity checks should be done for the sidecar here, for now just sign
+                let signed_sidecar = if let Some(sidecar) = sidecar {
+                    let signing_context = self.signing_context(Domain::BeaconProposer, signing_epoch);
+
+                    let signature = signing_method
+                        .get_signature::<E, Payload>(
+                            SignableMessage::BlobsSidecar(&sidecar),
+                            signing_context,
+                            &self.spec,
+                            &self.task_executor,
+                        )
+                        .await?;
+
+                    Some(SignedBlobsSidecar {
+                        message: sidecar,
+                        signature,
+                    })
+                } else {
+                    None
+                };
+
+                Ok((signed_block, signed_sidecar))
             }
             Ok(Safe::SameData) => {
                 warn!(

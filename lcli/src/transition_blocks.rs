@@ -368,6 +368,7 @@ fn do_transition<T: EthSpec>(
         &mut pre_state,
         &block,
         None,
+        None,
         BlockSignatureStrategy::NoVerification,
         VerifyBlockRoot::True,
         spec,

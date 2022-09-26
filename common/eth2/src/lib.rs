@@ -584,6 +584,7 @@ impl BeaconNodeHttpClient {
     pub async fn post_beacon_blocks<T: EthSpec, Payload: ExecPayload<T>>(
         &self,
         block: &SignedBeaconBlock<T, Payload>,
+        sidecar: &Option<SignedBlobsSidecar<T>>,
     ) -> Result<(), Error> {
         let mut path = self.eth_path(V1)?;
 
@@ -592,7 +593,7 @@ impl BeaconNodeHttpClient {
             .push("beacon")
             .push("blocks");
 
-        self.post_with_timeout(path, block, self.timeouts.proposal)
+        self.post_with_timeout(path, &(block, sidecar), self.timeouts.proposal)
             .await?;
 
         Ok(())
@@ -1227,7 +1228,7 @@ impl BeaconNodeHttpClient {
         slot: Slot,
         randao_reveal: &SignatureBytes,
         graffiti: Option<&Graffiti>,
-    ) -> Result<ForkVersionedResponse<BeaconBlock<T, Payload>>, Error> {
+    ) -> Result<ForkVersionedResponse<(BeaconBlock<T, Payload>, Option<BlobsSidecar<T>>)>, Error> {
         self.get_validator_blocks_with_verify_randao(slot, Some(randao_reveal), graffiti, None)
             .await
     }
@@ -1239,7 +1240,7 @@ impl BeaconNodeHttpClient {
         randao_reveal: Option<&SignatureBytes>,
         graffiti: Option<&Graffiti>,
         verify_randao: Option<bool>,
-    ) -> Result<ForkVersionedResponse<BeaconBlock<T, Payload>>, Error> {
+    ) -> Result<ForkVersionedResponse<(BeaconBlock<T, Payload>, Option<BlobsSidecar<T>>)>, Error> {
         let mut path = self.eth_path(V2)?;
 
         path.path_segments_mut()

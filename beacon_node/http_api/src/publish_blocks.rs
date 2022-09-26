@@ -1,6 +1,9 @@
 use crate::metrics;
 use beacon_chain::validator_monitor::{get_block_delay_ms, timestamp_now};
-use beacon_chain::{BeaconChain, BeaconChainTypes, BlockError, CountUnrealized};
+use beacon_chain::{
+    BeaconChain, BeaconChainTypes, BlockError, CountUnrealized, SignatureVerifiedSidecar,
+    StateSkipConfig,
+};
 use lighthouse_network::PubsubMessage;
 use network::NetworkMessage;
 use slog::{crit, error, info, warn, Logger};
@@ -10,13 +13,14 @@ use tokio::sync::mpsc::UnboundedSender;
 use tree_hash::TreeHash;
 use types::{
     BlindedPayload, ExecPayload, ExecutionBlockHash, ExecutionPayload, FullPayload,
-    SignedBeaconBlock,
+    SignedBeaconBlock, SignedBlobsSidecar,
 };
 use warp::Rejection;
 
 /// Handles a request from the HTTP API for full blocks.
 pub async fn publish_block<T: BeaconChainTypes>(
     block: Arc<SignedBeaconBlock<T::EthSpec>>,
+    sidecar: Option<Arc<SignedBlobsSidecar<T::EthSpec>>>,
     chain: Arc<BeaconChain<T>>,
     network_tx: &UnboundedSender<NetworkMessage<T::EthSpec>>,
     log: Logger,
@@ -26,15 +30,51 @@ pub async fn publish_block<T: BeaconChainTypes>(
     // Send the block, regardless of whether or not it is valid. The API
     // specification is very clear that this is the desired behaviour.
     crate::publish_pubsub_message(network_tx, PubsubMessage::BeaconBlock(block.clone()))?;
+    if let Some(sidecar) = sidecar.clone() {
+        crate::publish_pubsub_message(network_tx, PubsubMessage::BlobsSidecars(sidecar))?;
+    }
 
     // Determine the delay after the start of the slot, register it with metrics.
     let delay = get_block_delay_ms(seen_timestamp, block.message(), &chain.slot_clock);
     metrics::observe_duration(&metrics::HTTP_API_BLOCK_BROADCAST_DELAY_TIMES, delay);
 
-    match chain
-        .process_block(block.clone(), None, CountUnrealized::True)
-        .await
-    {
+    let sidecar = if let Some(sidecar) = sidecar {
+        // feels like a VERY hacky way to get the state. probably incorrect in non-trivial cases.
+        let state = match chain.state_at_slot(
+            sidecar.message.beacon_block_slot - 1,
+            StateSkipConfig::WithoutStateRoots,
+        ) {
+            Ok(state) => state,
+            Err(e) => {
+                error!(
+                    log,
+                    "Failed to get state for sidecar verification";
+                    "outcome" => ?e,
+                );
+                return Err(warp_utils::reject::beacon_chain_error(e));
+            }
+        };
+
+        SignatureVerifiedSidecar::new(sidecar, &state, &chain).map(Some)
+    } else {
+        // make sure we don't need a sidecar
+        match block.message().body().blob_kzg_commitments() {
+            Ok(kzgs) if !kzgs.is_empty() => Err(BlockError::MissingSidecar),
+            _ => Ok(None),
+        }
+    };
+
+    // this is ugly but can't be done in a "map" call as we need to await the future
+    let result = match sidecar {
+        Ok(sidecar) => {
+            chain
+                .process_block(block.clone(), sidecar, CountUnrealized::True)
+                .await
+        }
+        Err(err) => Err(err),
+    };
+
+    match result {
         Ok(root) => {
             info!(
                 log,
@@ -128,7 +168,7 @@ pub async fn publish_blinded_block<T: BeaconChainTypes>(
     log: Logger,
 ) -> Result<(), Rejection> {
     let full_block = reconstruct_block(chain.clone(), block, log.clone()).await?;
-    publish_block::<T>(Arc::new(full_block), chain, network_tx, log).await
+    publish_block::<T>(Arc::new(full_block), todo!(), chain, network_tx, log).await
 }
 
 /// Deconstruct the given blinded block, and construct a full block. This attempts to use the

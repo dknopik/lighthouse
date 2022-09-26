@@ -47,7 +47,7 @@ use types::{
     Attestation, AttestationData, AttesterSlashing, BeaconStateError, BlindedPayload,
     CommitteeCache, ConfigAndPreset, Epoch, EthSpec, ForkName, FullPayload,
     ProposerPreparationData, ProposerSlashing, RelativeEpoch, Signature, SignedAggregateAndProof,
-    SignedBeaconBlock, SignedBlindedBeaconBlock, SignedContributionAndProof,
+    SignedBeaconBlock, SignedBlindedBeaconBlock, SignedBlobsSidecar, SignedContributionAndProof,
     SignedValidatorRegistrationData, SignedVoluntaryExit, Slot, SyncCommitteeMessage,
     SyncContributionData,
 };
@@ -1041,11 +1041,14 @@ pub fn serve<T: BeaconChainTypes>(
         .and(network_tx_filter.clone())
         .and(log_filter.clone())
         .and_then(
-            |block: Arc<SignedBeaconBlock<T::EthSpec>>,
+            |(block, sidecar): (
+                Arc<SignedBeaconBlock<T::EthSpec>>,
+                Option<Arc<SignedBlobsSidecar<T::EthSpec>>>,
+            ),
              chain: Arc<BeaconChain<T>>,
              network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>,
              log: Logger| async move {
-                publish_blocks::publish_block(block, chain, &network_tx, log)
+                publish_blocks::publish_block(block, sidecar, chain, &network_tx, log)
                     .await
                     .map(|()| warp::reply())
             },
@@ -2028,7 +2031,7 @@ pub fn serve<T: BeaconChainTypes>(
                     ProduceBlockVerification::NoVerification
                 };
 
-                let (block, _) = chain
+                let (block, sidecar, _) = chain
                     .produce_block_with_verification::<FullPayload<T::EthSpec>>(
                         randao_reveal,
                         slot,
@@ -2042,7 +2045,7 @@ pub fn serve<T: BeaconChainTypes>(
                     .fork_name(&chain.spec)
                     .map_err(inconsistent_fork_rejection)?;
 
-                fork_versioned_response(endpoint_version, fork_name, block)
+                fork_versioned_response(endpoint_version, fork_name, (block, sidecar))
                     .map(|response| warp::reply::json(&response))
             },
         );
@@ -2090,7 +2093,7 @@ pub fn serve<T: BeaconChainTypes>(
                     ProduceBlockVerification::NoVerification
                 };
 
-                let (block, _) = chain
+                let (block, _, _) = chain
                     .produce_block_with_verification::<BlindedPayload<T::EthSpec>>(
                         randao_reveal,
                         slot,

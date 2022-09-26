@@ -334,7 +334,7 @@ impl<E: EthSpec> Tester<E> {
         let result = self.block_on_dangerous(
             self.harness
                 .chain
-                .process_block(block.clone(), CountUnrealized::False),
+                .process_block(block.clone(), None, CountUnrealized::False),
         )?;
         if result.is_ok() != valid {
             return Err(Error::DidntFail(format!(

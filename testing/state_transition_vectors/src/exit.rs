@@ -68,6 +68,7 @@ impl ExitTest {
             state,
             block,
             None,
+            None,
             BlockSignatureStrategy::VerifyIndividual,
             VerifyBlockRoot::True,
             &E::default_spec(),

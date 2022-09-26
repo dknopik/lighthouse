@@ -1,16 +1,26 @@
-use crate::{EthSpec, Uint256};
+use crate::Uint256;
 use serde::{Deserialize, Serialize};
 use ssz::{Decode, DecodeError, Encode};
 use tree_hash::TreeHash;
+use crate::test_utils::{RngCore, TestRandom};
 
 #[derive(Default, Debug, PartialEq, Hash, Clone, Copy, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct BlsFieldElement(pub Uint256);
 
+impl TestRandom for BlsFieldElement {
+    fn random_for_test(rng: &mut impl RngCore) -> Self {
+        BlsFieldElement(Uint256::random_for_test(rng))
+    }
+}
 
 impl Encode for BlsFieldElement {
     fn is_ssz_fixed_len() -> bool {
         <Uint256 as Encode>::is_ssz_fixed_len()
+    }
+
+    fn ssz_append(&self, buf: &mut Vec<u8>) {
+        self.0.ssz_append(buf)
     }
 
     fn ssz_fixed_len() -> usize {
@@ -19,10 +29,6 @@ impl Encode for BlsFieldElement {
 
     fn ssz_bytes_len(&self) -> usize {
         self.0.ssz_bytes_len()
-    }
-
-    fn ssz_append(&self, buf: &mut Vec<u8>) {
-        self.0.ssz_append(buf)
     }
 }
 

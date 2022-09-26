@@ -20,7 +20,6 @@ use sensitive_url::SensitiveUrl;
 use serde::{Deserialize, Serialize};
 use slog::{crit, debug, error, info, trace, warn, Logger};
 use slot_clock::SlotClock;
-use types::execution_payload::BlobsBundle;
 use std::collections::HashMap;
 use std::future::Future;
 use std::io::Write;
@@ -34,8 +33,8 @@ use tokio::{
 };
 use tokio_stream::wrappers::WatchStream;
 use types::{
-    BlindedPayload, BlockType, ChainSpec, Epoch, ExecPayload, ExecutionBlockHash, ForkName,
-    ProposerPreparationData, PublicKeyBytes, SignedBeaconBlock, Slot,
+    BlindedPayload, BlobsBundle, BlockType, ChainSpec, Epoch, ExecPayload, ExecutionBlockHash,
+    ForkName, ProposerPreparationData, PublicKeyBytes, SignedBeaconBlock, Slot,
 };
 
 mod engine_api;
@@ -765,12 +764,12 @@ impl<T: EthSpec> ExecutionLayer<T> {
         parent_hash: ExecutionBlockHash,
         timestamp: u64,
         prev_randao: Hash256,
-        suggested_fee_recipient: Address,
+        proposer_index: u64,
     ) -> Result<BlobsBundle<T>, Error> {
         debug!(
             self.log(),
-            "Issuing engine_getPayload";
-            "suggested_fee_recipient" => ?suggested_fee_recipient,
+            "Issuing engine_getBlobsBundleV1";
+            "proposer_index" => ?proposer_index,
             "prev_randao" => ?prev_randao,
             "timestamp" => timestamp,
             "parent_hash" => ?parent_hash,
@@ -778,7 +777,12 @@ impl<T: EthSpec> ExecutionLayer<T> {
         self.engine()
             .request(|engine| async move {
                 let payload_id = if let Some(id) = engine
-                    .get_payload_id(parent_hash, timestamp, prev_randao, suggested_fee_recipient)
+                    .get_payload_id(
+                        parent_hash,
+                        timestamp,
+                        prev_randao,
+                        self.get_suggested_fee_recipient(proposer_index).await,
+                    )
                     .await
                 {
                     // The payload id has been cached for this engine.
@@ -787,22 +791,19 @@ impl<T: EthSpec> ExecutionLayer<T> {
                         &[metrics::HIT],
                     );
                     id
-                } else {             
+                } else {
                     error!(
                         self.log(),
                         "Exec engine unable to produce blobs, did you call get_payload before?",
                     );
-                    return Err(ApiError::PayloadIdUnavailable);                       
+                    return Err(ApiError::PayloadIdUnavailable);
                 };
 
                 engine
                     .api
                     .get_blobs_bundle_v1::<T>(payload_id)
                     .await
-                    .map(|bundle| {
-                        // TODO verify the blob bundle here?
-                        bundle.into()
-                    })
+                    .map(|bundle| bundle.into())
             })
             .await
             .map_err(Box::new)

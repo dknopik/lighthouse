@@ -1,8 +1,5 @@
-# Prater config
-
-# Extends the mainnet preset
 CONFIG_NAME: 'eip4844'
-PRESET_BASE: 'mainnet'
+PRESET_BASE: 'eip4844devnet'
 
 # Transition
 # ---------------------------------------------------------------
@@ -13,13 +10,9 @@ TERMINAL_BLOCK_HASH_ACTIVATION_EPOCH: 18446744073709551615
 
 # Genesis
 # ---------------------------------------------------------------
-# `2**14` (= 16,384)
 MIN_GENESIS_ACTIVE_VALIDATOR_COUNT: 2
-# Mar-01-2021 08:53:32 AM +UTC
 MIN_GENESIS_TIME: 1653318000
-# Prater area code (Vienna)
 GENESIS_FORK_VERSION: 0x00000ffd
-# Customized for Prater: 1919188 seconds (Mar-23-2021 02:00:00 PM +UTC)
 GENESIS_DELAY: 0
 
 
@@ -39,7 +32,6 @@ BELLATRIX_FORK_EPOCH: 2
 EIP4844_FORK_VERSION: 0x83000ffd
 EIP4844_FORK_EPOCH: 3
 
-# TBD, 2**32 is a placeholder. Merge transition approach is in active R&D.
 TRANSITION_TOTAL_DIFFICULTY: 40
 
 
@@ -53,7 +45,6 @@ SECONDS_PER_ETH1_BLOCK: 14
 MIN_VALIDATOR_WITHDRAWABILITY_DELAY: 256
 # 2**8 (= 256) epochs ~27 hours
 SHARD_COMMITTEE_PERIOD: 256
-# 2**11 (= 2,048) Eth1 blocks ~8 hours
 ETH1_FOLLOW_DISTANCE: 15
 
 
@@ -78,8 +69,6 @@ PROPOSER_SCORE_BOOST: 40
 
 # Deposit contract
 # ---------------------------------------------------------------
-# Ethereum Goerli testnet
 DEPOSIT_CHAIN_ID: 1331
 DEPOSIT_NETWORK_ID: 69
-# Prater test deposit contract on Goerli Testnet
 DEPOSIT_CONTRACT_ADDRESS: 0x8A04d14125D0FDCDc742F4A05C051De07232EDa4
