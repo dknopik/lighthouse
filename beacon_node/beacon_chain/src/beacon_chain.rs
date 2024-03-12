@@ -124,6 +124,7 @@ use types::beacon_state::CloneConfig;
 use types::blob_sidecar::{BlobSidecarList, FixedBlobSidecarList};
 use types::payload::BlockProductionVersion;
 use types::*;
+use types::signed_inclusion_list::InclusionList;
 
 pub type ForkChoiceError = fork_choice::Error<crate::ForkChoiceStoreError>;
 
@@ -538,6 +539,8 @@ pub struct BeaconBlockResponse<T: EthSpec, Payload: AbstractExecPayload<T>> {
     pub state: BeaconState<T>,
     /// The Blobs / Proofs associated with the new block
     pub blob_items: Option<(KzgProofs<T>, BlobsList<T>)>,
+    /// The Inclusion List associated with the new block
+    pub inclusion_list: Option<InclusionList<T>>,
     /// The execution layer reward for the block
     pub execution_payload_value: Uint256,
     /// The consensus layer reward to the proposer
@@ -5116,7 +5119,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             bls_to_execution_changes,
         } = partial_beacon_block;
 
-        let (inner_block, maybe_blobs_and_proofs, execution_payload_value) = match &state {
+        let (inner_block, maybe_blobs_and_proofs, inclusion_list, execution_payload_value) = match &state {
             BeaconState::Base(_) => (
                 BeaconBlock::Base(BeaconBlockBase {
                     slot,
@@ -5135,6 +5138,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                         _phantom: PhantomData,
                     },
                 }),
+                None,
                 None,
                 Uint256::zero(),
             ),
@@ -5158,6 +5162,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                         _phantom: PhantomData,
                     },
                 }),
+                None,
                 None,
                 Uint256::zero(),
             ),
@@ -5188,6 +5193,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                                 .map_err(|_| BlockProductionError::InvalidPayloadFork)?,
                         },
                     }),
+                    None,
                     None,
                     execution_payload_value,
                 )
@@ -5222,11 +5228,12 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                         },
                     }),
                     None,
+                    None,
                     execution_payload_value,
                 )
             }
             BeaconState::Deneb(_) => {
-                let (payload, kzg_commitments, maybe_blobs_and_proofs, execution_payload_value) =
+                let (payload, kzg_commitments, maybe_blobs_and_proofs, _, execution_payload_value) =
                     block_contents
                         .ok_or(BlockProductionError::MissingExecutionPayload)?
                         .deconstruct();
@@ -5260,11 +5267,12 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                         },
                     }),
                     maybe_blobs_and_proofs,
+                    None,
                     execution_payload_value,
                 )
             }
             BeaconState::Electra(_) => {
-                let (payload, kzg_commitments, maybe_blobs_and_proofs, execution_payload_value) =
+                let (payload, kzg_commitments, maybe_blobs_and_proofs, inclusion_list, execution_payload_value) =
                     block_contents
                         .ok_or(BlockProductionError::MissingExecutionPayload)?
                         .deconstruct();
@@ -5295,6 +5303,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                         },
                     }),
                     maybe_blobs_and_proofs,
+                    inclusion_list,
                     execution_payload_value,
                 )
             }
@@ -5406,6 +5415,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             block,
             state,
             blob_items,
+            inclusion_list,
             execution_payload_value,
             consensus_block_value,
         })
