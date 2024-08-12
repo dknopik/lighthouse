@@ -1186,11 +1186,11 @@ impl<E: EthSpec> Network<E> {
             Response::LightClientBootstrap(_) => {
                 metrics::inc_counter_vec(&metrics::TOTAL_RPC_RESPONSES_RECEIVED, &["light_client_bootstrap"])
             }
-            Response::LightClientOptimisticUpdate => metrics::inc_counter_vec(
+            Response::LightClientOptimisticUpdate(_) => metrics::inc_counter_vec(
                 &metrics::TOTAL_RPC_RESPONSES_RECEIVED,
                 &["light_client_optimistic_update"],
             ),
-            Response::LightClientFinalityUpdate => metrics::inc_counter_vec(
+            Response::LightClientFinalityUpdate(_) => metrics::inc_counter_vec(
                 &metrics::TOTAL_RPC_RESPONSES_RECEIVED,
                 &["light_client_finality_update"],
             ),

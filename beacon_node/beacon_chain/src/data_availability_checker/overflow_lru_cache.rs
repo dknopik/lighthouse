@@ -660,6 +660,10 @@ impl<T: BeaconChainTypes> DataAvailabilityCheckerInner<T> {
         Ok(())
     }
 
+    pub fn custody_column_count(&self) -> usize {
+        self.custody_column_count
+    }
+
     #[cfg(test)]
     /// get the state cache for inspection (used only for tests)
     pub fn state_lru_cache(&self) -> &StateLRUCache<T> {
