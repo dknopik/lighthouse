@@ -91,7 +91,7 @@ use kzg::Kzg;
 use operation_pool::{
     CompactAttestationRef, OperationPool, PersistedOperationPool, ReceivedPreCapella,
 };
-use parking_lot::{Mutex, RwLock};
+use parking_lot::{Mutex, RwLock, RwLockWriteGuard};
 use proto_array::{DoNotReOrg, ProposerHeadError};
 use safe_arith::SafeArith;
 use slasher::test_utils::E;
@@ -3888,17 +3888,41 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // See https://github.com/sigp/lighthouse/issues/2028
         let (_, signed_block, blobs, data_columns) = signed_block.deconstruct();
         let custody_columns_count = self.data_availability_checker.get_custody_columns_count();
-        // if the block was made available via custody columns received from gossip / rpc, use them
-        // since we already have them.
-        // Otherwise, it means blobs were likely available via fetching from EL, in this case we
-        // wait for the data columns to be computed (blocking).
-        let data_columns = data_columns
-            .filter(|a| a.len() >= custody_columns_count)
-            .or_else(|| {
+        let data_columns = data_columns.filter(|columns| columns.len() >= custody_columns_count);
+
+        let data_columns = match (data_columns, data_column_recv) {
+            // If the block was made available via custody columns received from gossip / rpc, use them
+            // since we already have them.
+            (Some(columns), _) => Some(columns),
+            // Otherwise, it means blobs were likely available via fetching from EL, in this case we
+            // wait for the data columns to be computed (blocking).
+            (None, Some(mut data_column_recv)) => {
                 let _column_recv_timer =
                     metrics::start_timer(&metrics::BLOCK_PROCESSING_DATA_COLUMNS_WAIT);
-                data_column_recv?.blocking_recv()
-            });
+                // Unable to receive data columns from sender, sender is either dropped or
+                // failed to compute data columns from blobs. We restore fork choice here and
+                // return to avoid inconsistency in database.
+                if let Some(columns) = data_column_recv.blocking_recv() {
+                    Some(columns)
+                } else {
+                    let err_msg = "Did not receive data columns from sender";
+                    error!(
+                        self.log,
+                        "Failed to store data columns into the database";
+                        "msg" => "Restoring fork choice from disk",
+                        "error" => err_msg,
+                    );
+                    return Err(self
+                        .handle_import_block_db_write_error(fork_choice)
+                        .err()
+                        .unwrap_or(BlockError::InternalError(err_msg.to_string())));
+                }
+            }
+            // Non data columns present and compute data columns task was not spawned.
+            // Could either be no blobs in the block or before PeerDAS activation.
+            (None, None) => None,
+        };
+
         let block = signed_block.message();
         let db_write_timer = metrics::start_timer(&metrics::BLOCK_PROCESSING_DB_WRITE);
         ops.extend(
@@ -3940,33 +3964,10 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                 "msg" => "Restoring fork choice from disk",
                 "error" => ?e,
             );
-
-            // Clear the early attester cache to prevent attestations which we would later be unable
-            // to verify due to the failure.
-            self.early_attester_cache.clear();
-
-            // Since the write failed, try to revert the canonical head back to what was stored
-            // in the database. This attempts to prevent inconsistency between the database and
-            // fork choice.
-            if let Err(e) = self.canonical_head.restore_from_store(
-                fork_choice,
-                ResetPayloadStatuses::always_reset_conditionally(
-                    self.config.always_reset_payload_statuses,
-                ),
-                &self.store,
-                &self.spec,
-                &self.log,
-            ) {
-                crit!(
-                    self.log,
-                    "No stored fork choice found to restore from";
-                    "error" => ?e,
-                    "warning" => "The database is likely corrupt now, consider --purge-db"
-                );
-                return Err(BlockError::BeaconChainError(e));
-            }
-
-            return Err(e.into());
+            return Err(self
+                .handle_import_block_db_write_error(fork_choice)
+                .err()
+                .unwrap_or(e.into()));
         }
         drop(txn_lock);
 
@@ -4032,6 +4033,41 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         );
 
         Ok(block_root)
+    }
+
+    fn handle_import_block_db_write_error(
+        &self,
+        // We don't actually need this value, however it's always present when we call this function
+        // and it needs to be dropped to prevent a dead-lock. Requiring it to be passed here is
+        // defensive programming.
+        fork_choice_write_lock: RwLockWriteGuard<BeaconForkChoice<T>>,
+    ) -> Result<(), BlockError<T::EthSpec>> {
+        // Clear the early attester cache to prevent attestations which we would later be unable
+        // to verify due to the failure.
+        self.early_attester_cache.clear();
+
+        // Since the write failed, try to revert the canonical head back to what was stored
+        // in the database. This attempts to prevent inconsistency between the database and
+        // fork choice.
+        if let Err(e) = self.canonical_head.restore_from_store(
+            fork_choice_write_lock,
+            ResetPayloadStatuses::always_reset_conditionally(
+                self.config.always_reset_payload_statuses,
+            ),
+            &self.store,
+            &self.spec,
+            &self.log,
+        ) {
+            crit!(
+                self.log,
+                "No stored fork choice found to restore from";
+                "error" => ?e,
+                "warning" => "The database is likely corrupt now, consider --purge-db"
+            );
+            Err(BlockError::BeaconChainError(e))
+        } else {
+            Ok(())
+        }
     }
 
     /// Check block's consistentency with any configured weak subjectivity checkpoint.
