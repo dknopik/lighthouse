@@ -1,10 +1,10 @@
 use crate::beacon_block_body::{KzgCommitments, BLOB_KZG_COMMITMENTS_INDEX};
 use crate::test_utils::TestRandom;
+use crate::BeaconStateError;
 use crate::{
-    BeaconBlockHeader, ChainSpec, EthSpec, Hash256, KzgProofs, SignedBeaconBlock,
+    BeaconBlockHeader, Blob, ChainSpec, EthSpec, Hash256, KzgProofs, SignedBeaconBlock,
     SignedBeaconBlockHeader, Slot,
 };
-use crate::{BeaconStateError, BlobsList};
 use bls::Signature;
 use derivative::Derivative;
 #[cfg_attr(test, double)]
@@ -102,7 +102,7 @@ impl<E: EthSpec> DataColumnSidecar<E> {
     }
 
     pub fn build_sidecars(
-        blobs: &BlobsList<E>,
+        blobs: &[&Blob<E>],
         block: &SignedBeaconBlock<E>,
         kzg: &Kzg,
         spec: &ChainSpec,
@@ -401,8 +401,8 @@ mod test {
     use crate::beacon_block_body::KzgCommitments;
     use crate::eth_spec::EthSpec;
     use crate::{
-        BeaconBlock, BeaconBlockDeneb, Blob, ChainSpec, DataColumnSidecar, MainnetEthSpec,
-        SignedBeaconBlock,
+        BeaconBlock, BeaconBlockDeneb, Blob, BlobsList, ChainSpec, DataColumnSidecar,
+        MainnetEthSpec, SignedBeaconBlock,
     };
     use bls::Signature;
     use kzg::KzgCommitment;
@@ -416,9 +416,9 @@ mod test {
         let (signed_block, blob_sidecars) = create_test_block_and_blobs::<E>(num_of_blobs, &spec);
 
         let mock_kzg = Arc::new(Kzg::default());
+        let blob_refs = blob_sidecars.iter().collect::<Vec<_>>();
         let column_sidecars =
-            DataColumnSidecar::build_sidecars(&blob_sidecars, &signed_block, &mock_kzg, &spec)
-                .unwrap();
+            DataColumnSidecar::build_sidecars(&blob_refs, &signed_block, &mock_kzg, &spec).unwrap();
 
         assert!(column_sidecars.is_empty());
     }
@@ -435,9 +435,9 @@ mod test {
             .expect_compute_cells_and_proofs()
             .returning(kzg::mock::compute_cells_and_proofs);
 
+        let blob_refs = blob_sidecars.iter().collect::<Vec<_>>();
         let column_sidecars =
-            DataColumnSidecar::build_sidecars(&blob_sidecars, &signed_block, &mock_kzg, &spec)
-                .unwrap();
+            DataColumnSidecar::build_sidecars(&blob_refs, &signed_block, &mock_kzg, &spec).unwrap();
 
         let block_kzg_commitments = signed_block
             .message()

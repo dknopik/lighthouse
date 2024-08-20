@@ -147,15 +147,16 @@ mod test {
         type E = MainnetEthSpec;
         let num_of_blobs = 6;
         let spec = E::default_spec();
-        let (signed_block, blob_sidecars) = create_test_block_and_blobs::<E>(num_of_blobs, &spec);
+        let (signed_block, blobs) = create_test_block_and_blobs::<E>(num_of_blobs, &spec);
 
         let trusted_setup: TrustedSetup = serde_json::from_reader(TRUSTED_SETUP_BYTES)
             .map_err(|e| format!("Unable to read trusted setup file: {}", e))
             .expect("should have trusted setup");
         let kzg = Kzg::new_from_trusted_setup(trusted_setup).expect("should create kzg");
 
+        let blob_refs = blobs.iter().collect::<Vec<_>>();
         let column_sidecars =
-            DataColumnSidecar::build_sidecars(&blob_sidecars, &signed_block, &kzg, &spec).unwrap();
+            DataColumnSidecar::build_sidecars(&blob_refs, &signed_block, &kzg, &spec).unwrap();
 
         // Now reconstruct
         let reconstructed_columns = DataColumnSidecar::reconstruct(

@@ -6,8 +6,8 @@ use superstruct::superstruct;
 use types::beacon_block_body::KzgCommitments;
 use types::blob_sidecar::BlobsList;
 use types::{
-    DepositRequest, ExecutionLayerWithdrawalRequest, FixedVector, PublicKeyBytes, Signature,
-    Unsigned,
+    Blob, DepositRequest, ExecutionLayerWithdrawalRequest, FixedVector, KzgProof, PublicKeyBytes,
+    Signature, Unsigned,
 };
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -581,6 +581,14 @@ impl<E: EthSpec> From<JsonBlobsBundleV1<E>> for BlobsBundle<E> {
             blobs: json_blobs_bundle.blobs,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(bound = "E: EthSpec", rename_all = "camelCase")]
+pub struct BlobAndProofV1<E: EthSpec> {
+    #[serde(with = "ssz_types::serde_utils::hex_fixed_vec")]
+    pub blob: Blob<E>,
+    pub proof: KzgProof,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
