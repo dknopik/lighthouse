@@ -7,6 +7,7 @@
 //! on P2P gossip to the network. From PeerDAS onwards, together with the increase in blob count,
 //! broadcasting blobs requires a much higher bandwidth, and is only done by high capacity
 //! supernodes.
+use crate::kzg_utils::blobs_to_data_column_sidecars;
 use crate::observed_data_sidecars::ObservableDataSidecar;
 use crate::{BeaconChain, BeaconChainError, BeaconChainTypes, BlockError, ExecutionPayloadError};
 use itertools::Either;
@@ -15,13 +16,13 @@ use state_processing::per_block_processing::deneb::kzg_commitment_to_versioned_h
 use std::sync::Arc;
 use types::blob_sidecar::FixedBlobSidecarList;
 use types::{
-    BlobSidecar, DataColumnSidecar, DataColumnSidecarVec, EthSpec, FullPayload, Hash256,
-    SignedBeaconBlock,
+    BlobSidecar, DataColumnSidecarList, EthSpec, FullPayload, Hash256, SignedBeaconBlock,
+    VariableList,
 };
 
 pub enum BlobsOrDataColumns<E: EthSpec> {
     Blobs(Vec<Arc<BlobSidecar<E>>>),
-    DataColumns(DataColumnSidecarVec<E>),
+    DataColumns(DataColumnSidecarList<E>),
 }
 
 /// Fetches blobs from the EL mempool and processes them. It also broadcasts unseen blobs or
@@ -144,15 +145,13 @@ pub async fn fetch_and_process_engine_blobs<T: BeaconChainTypes>(
             .task_executor
             .spawn_handle(
                 async move {
-                    let blob_refs = blobs_cloned.iter()
-                        .filter_map(|b| b.as_ref().map(|b| &b.blob))
+                    // TODO(das): inefficient allocation
+                    let blob_vec = blobs_cloned.iter()
+                        .filter_map(|b| b.as_ref().map(|b| b.blob.clone()))
                         .collect::<Vec<_>>();
-                    let data_columns_result = DataColumnSidecar::build_sidecars(
-                        &blob_refs,
-                        &block_cloned,
-                        &kzg,
-                        &spec,
-                    );
+                    let blob_list = VariableList::from(blob_vec);
+                    let data_columns_result =
+                        blobs_to_data_column_sidecars(&blob_list, &block_cloned, &kzg, &spec);
 
                     let all_data_columns = match data_columns_result {
                         Ok(d) => d,
