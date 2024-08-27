@@ -16,13 +16,12 @@ use std::collections::HashSet;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use types::blob_sidecar::BlobIdentifier;
-use types::data_column_sidecar::DataColumnIdentifier;
 use types::{
-    BlobSidecar, ChainSpec, ColumnIndex, DataColumnSidecar, Epoch, EthSpec, Hash256,
-    SignedBeaconBlock,
+    BlobSidecar, ChainSpec, ColumnIndex, DataColumnIdentifier, DataColumnSidecar,
+    DataColumnSidecarList, Epoch, EthSpec, Hash256, SignedBeaconBlock,
 };
 
-pub type DataColumnsToPublish<E> = Option<Vec<Arc<DataColumnSidecar<E>>>>;
+pub type DataColumnsToPublish<E> = Option<DataColumnSidecarList<E>>;
 
 /// This represents the components of a partially available block
 ///
@@ -396,14 +395,6 @@ impl<T: BeaconChainTypes> DataAvailabilityCheckerInner<T> {
         }
     }
 
-    pub fn peek_pending_components<R, F: FnOnce(Option<&PendingComponents<T::EthSpec>>) -> R>(
-        &self,
-        block_root: &Hash256,
-        f: F,
-    ) -> R {
-        f(self.critical.read().peek(block_root))
-    }
-
     /// Fetch a data column from the cache without affecting the LRU ordering
     pub fn peek_data_column(
         &self,
@@ -418,6 +409,14 @@ impl<T: BeaconChainTypes> DataAvailabilityCheckerInner<T> {
         } else {
             Ok(None)
         }
+    }
+
+    pub fn peek_pending_components<R, F: FnOnce(Option<&PendingComponents<T::EthSpec>>) -> R>(
+        &self,
+        block_root: &Hash256,
+        f: F,
+    ) -> R {
+        f(self.critical.read().peek(block_root))
     }
 
     /// Potentially trigger reconstruction if:
@@ -472,8 +471,6 @@ impl<T: BeaconChainTypes> DataAvailabilityCheckerInner<T> {
         }
     }
 
-    // TODO(das): rpc code paths to be implemented.
-    #[allow(dead_code)]
     #[allow(clippy::type_complexity)]
     pub fn put_kzg_verified_data_columns<
         I: IntoIterator<Item = KzgVerifiedCustodyDataColumn<T::EthSpec>>,
