@@ -114,9 +114,6 @@ pub struct SyncingChain<T: BeaconChainTypes> {
     /// The current processing batch, if any.
     current_processing_batch: Option<BatchId>,
 
-    /// Batches validated by this chain.
-    validated_batches: u64,
-
     /// The chain's log.
     log: slog::Logger,
 }
@@ -164,7 +161,6 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
             attempted_optimistic_starts: HashSet::default(),
             state: ChainSyncingState::Stopped,
             current_processing_batch: None,
-            validated_batches: 0,
             log: log.new(o!("chain" => id)),
         }
     }
@@ -185,8 +181,10 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
     }
 
     /// Progress in epochs made by the chain
-    pub fn validated_epochs(&self) -> u64 {
-        self.validated_batches * EPOCHS_PER_BATCH
+    pub fn processed_epochs(&self) -> u64 {
+        self.processing_target
+            .saturating_sub(self.start_epoch)
+            .into()
     }
 
     /// Returns the total count of pending blocks in all the batches of this chain
@@ -665,7 +663,6 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
         let removed_batches = std::mem::replace(&mut self.batches, remaining_batches);
 
         for (id, batch) in removed_batches.into_iter() {
-            self.validated_batches = self.validated_batches.saturating_add(1);
             // only for batches awaiting validation can we be sure the last attempt is
             // right, and thus, that any different attempt is wrong
             match batch.state() {
@@ -1171,6 +1168,9 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
         }
 
         // don't send batch requests until we have peers on custody subnets
+        // TODO(das): this is a workaround to avoid sending out excessive block requests because
+        // block and data column requests are currently coupled. This can be removed once we find a
+        // way to decouple the requests and do retries individually, see issue #6258.
         if !self.good_peers_on_custody_subnets(self.to_be_downloaded, network) {
             debug!(
                 self.log,
@@ -1271,7 +1271,6 @@ impl<T: BeaconChainTypes> slog::KV for SyncingChain<T> {
         )?;
         serializer.emit_usize("batches", self.batches.len())?;
         serializer.emit_usize("peers", self.peers.len())?;
-        serializer.emit_u64("validated_batches", self.validated_batches)?;
         serializer.emit_arguments("state", &format_args!("{:?}", self.state))?;
         slog::Result::Ok(())
     }
