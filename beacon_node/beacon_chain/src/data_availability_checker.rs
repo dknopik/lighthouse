@@ -544,6 +544,7 @@ impl<T: BeaconChainTypes> DataAvailabilityChecker<T> {
         DataAvailabilityCheckerMetrics {
             state_cache_size: self.availability_cache.state_cache_size(),
             block_cache_size: self.availability_cache.block_cache_size(),
+            custody_columns_count: self.get_custody_columns_count(),
         }
     }
 }
@@ -552,6 +553,7 @@ impl<T: BeaconChainTypes> DataAvailabilityChecker<T> {
 pub struct DataAvailabilityCheckerMetrics {
     pub state_cache_size: usize,
     pub block_cache_size: usize,
+    pub custody_columns_count: usize,
 }
 
 pub fn start_availability_cache_maintenance_service<T: BeaconChainTypes>(

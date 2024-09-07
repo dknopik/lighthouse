@@ -29,6 +29,7 @@ use hashlink::LinkedHashMap;
 use libp2p::identity::PeerId;
 use libp2p::swarm::ConnectionId;
 use prometheus_client::encoding::EncodeLabelValue;
+use quick_protobuf::sizeofs::*;
 use quick_protobuf::MessageWrite;
 use std::collections::BTreeSet;
 use std::fmt::Debug;
@@ -132,7 +133,7 @@ pub(crate) struct PeerConnections {
 #[allow(non_camel_case_types)]
 pub enum PeerKind {
     /// A gossipsub 1.2 peer.
-    Gossipsubv1_2_beta,
+    Gossipsubv1_2,
     /// A gossipsub 1.1 peer.
     Gossipsubv1_1,
     /// A gossipsub 1.0 peer.
@@ -148,7 +149,7 @@ impl PeerKind {
     pub(crate) fn is_gossipsub(&self) -> bool {
         matches!(
             self,
-            Self::Gossipsubv1_2_beta | Self::Gossipsubv1_1 | Self::Gossipsub
+            Self::Gossipsubv1_2 | Self::Gossipsubv1_1 | Self::Gossipsub
         )
     }
 }
@@ -234,6 +235,21 @@ impl fmt::Debug for Message {
             .field("sequence_number", &self.sequence_number)
             .field("topic", &self.topic)
             .finish()
+    }
+}
+
+impl Message {
+    pub(crate) fn get_size(&self) -> usize {
+        self
+            .source
+            .as_ref()
+            .map_or(0, |m| 1 + sizeof_len(m.to_bytes().len()))
+            + sizeof_len(self.data.len())
+            + self
+                .sequence_number
+                .as_ref()
+                .map_or(0, |m| 1 + sizeof_varint(*m))
+            + sizeof_len(self.topic.hash_byte_len())
     }
 }
 
@@ -623,7 +639,7 @@ impl PeerKind {
             Self::Floodsub => "Floodsub",
             Self::Gossipsub => "Gossipsub v1.0",
             Self::Gossipsubv1_1 => "Gossipsub v1.1",
-            Self::Gossipsubv1_2_beta => "Gossipsub v1.2-beta",
+            Self::Gossipsubv1_2 => "Gossipsub v1.2",
         }
     }
 }
