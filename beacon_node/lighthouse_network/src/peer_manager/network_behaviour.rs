@@ -116,6 +116,7 @@ impl<E: EthSpec> NetworkBehaviour for PeerManager<E> {
                 opts: DialOpts::peer_id(peer_id)
                     .condition(PeerCondition::Disconnected)
                     .addresses(multiaddrs)
+                    .allocate_new_port()
                     .build(),
             });
         }
