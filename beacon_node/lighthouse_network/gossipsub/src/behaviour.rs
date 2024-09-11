@@ -1185,7 +1185,9 @@ where
             // Connect to peer
             tracing::debug!(peer=%peer_id, "Connecting to explicit peer");
             self.events.push_back(ToSwarm::Dial {
-                opts: DialOpts::peer_id(*peer_id).build(),
+                opts: DialOpts::peer_id(*peer_id)
+                    .allocate_new_port()
+                    .build(),
             });
         }
     }
@@ -1694,7 +1696,9 @@ where
 
                 // dial peer
                 self.events.push_back(ToSwarm::Dial {
-                    opts: DialOpts::peer_id(peer_id).build(),
+                    opts: DialOpts::peer_id(peer_id)
+                        .allocate_new_port()
+                        .build(),
                 });
             }
         }
