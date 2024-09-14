@@ -25,7 +25,7 @@ use types::{
 
 use crate::kzg_utils::blobs_to_data_column_sidecars;
 use crate::observed_data_sidecars::ObservableDataSidecar;
-use crate::{metrics, BeaconChain, BeaconChainTypes, BlockError};
+use crate::{metrics, AvailabilityProcessingStatus, BeaconChain, BeaconChainTypes, BlockError};
 
 pub enum BlobsOrDataColumns<E: EthSpec> {
     Blobs(Vec<Arc<BlobSidecar<E>>>),
@@ -227,7 +227,7 @@ pub async fn fetch_and_process_engine_blobs<T: BeaconChainTypes>(
         "num_fetched_blobs" => num_fetched_blobs,
     );
 
-    chain
+    match chain
         .process_engine_blobs(
             block.slot(),
             block_root,
@@ -235,11 +235,21 @@ pub async fn fetch_and_process_engine_blobs<T: BeaconChainTypes>(
             data_columns_receiver_opt,
         )
         .await
-        .map(|_| debug!(chain.log, "Blobs from EL - processed"))
         .map_err(|e| {
             warn!(chain.log, "Blobs from EL - error"; "error" => ?e);
             FetchEngineBlobError::BlobProcessingError(e)
-        })?;
+        })? {
+        AvailabilityProcessingStatus::MissingComponents(_, _) => {
+            debug!(
+                chain.log,
+                "Blobs from EL - missing components after processing"
+            )
+        }
+        AvailabilityProcessingStatus::Imported(_) => {
+            debug!(chain.log, "Blobs from EL - processed");
+            chain.recompute_head_at_current_slot().await;
+        }
+    }
 
     Ok(())
 }
