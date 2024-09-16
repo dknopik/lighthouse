@@ -216,7 +216,7 @@ impl<E: EthSpec> PendingComponents<E> {
                 self.num_expected_blobs()
                     .map_or(false, |num_expected_blobs| {
                         num_expected_blobs == 0
-                            || *num_expected_columns == num_received_data_columns
+                            || *num_expected_columns <= num_received_data_columns
                     })
             }
         }
