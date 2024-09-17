@@ -16,7 +16,7 @@ use futures::prelude::*;
 use futures::StreamExt;
 use lighthouse_network::service::Network;
 use lighthouse_network::types::GossipKind;
-use lighthouse_network::{prometheus_client::registry::Registry, MessageAcceptance};
+use lighthouse_network::{prometheus_client::registry::Registry, MessageAcceptance, SubnetDiscovery};
 use lighthouse_network::{
     rpc::{GoodbyeReason, RPCResponseErrorCode},
     Context, PeerAction, PeerRequestId, PubsubMessage, ReportSource, Request, Response, Subnet,
@@ -101,6 +101,8 @@ pub enum NetworkMessage<E: EthSpec> {
         reason: GoodbyeReason,
         source: ReportSource,
     },
+    /// Discover peers for a list of `SubnetDiscovery`.
+    DiscoverPeers(Vec<SubnetDiscovery>),
 }
 
 /// Messages triggered by validators that may trigger a subscription to a subnet.
@@ -787,6 +789,9 @@ impl<T: BeaconChainTypes> NetworkService<T> {
                         "topics" => ?subscribed_topics.into_iter().map(|topic| format!("{}", topic)).collect::<Vec<_>>()
                     );
                 }
+            }
+            NetworkMessage::DiscoverPeers(subnets) => {
+                self.libp2p.discover_subnet_peers(subnets);
             }
         }
     }

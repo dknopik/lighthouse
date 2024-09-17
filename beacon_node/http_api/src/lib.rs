@@ -50,7 +50,7 @@ use eth2::types::{
     ValidatorStatus, ValidatorsRequestBody,
 };
 use eth2::{CONSENSUS_VERSION_HEADER, CONTENT_TYPE_HEADER, SSZ_CONTENT_TYPE_HEADER};
-use lighthouse_network::{types::SyncState, EnrExt, NetworkGlobals, PeerId, PubsubMessage};
+use lighthouse_network::{types::SyncState, EnrExt, NetworkGlobals, PeerId, PubsubMessage, Subnet, SubnetDiscovery};
 use lighthouse_version::version_with_platform;
 use logging::SSELoggingComponents;
 use network::{NetworkMessage, NetworkSenders, ValidatorSubscriptionMessage};
@@ -69,6 +69,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use sysinfo::{System, SystemExt};
 use system_health::{observe_nat, observe_system_health_bn};
 use task_spawner::{Priority, TaskSpawner};
@@ -80,14 +81,7 @@ use tokio_stream::{
     wrappers::{errors::BroadcastStreamRecvError, BroadcastStream},
     StreamExt,
 };
-use types::{
-    fork_versioned_response::EmptyMetadata, Attestation, AttestationData, AttestationShufflingId,
-    AttesterSlashing, BeaconStateError, CommitteeCache, ConfigAndPreset, Epoch, EthSpec, ForkName,
-    ForkVersionedResponse, Hash256, ProposerPreparationData, ProposerSlashing, RelativeEpoch,
-    SignedAggregateAndProof, SignedBlindedBeaconBlock, SignedBlsToExecutionChange,
-    SignedContributionAndProof, SignedValidatorRegistrationData, SignedVoluntaryExit, Slot,
-    SyncCommitteeMessage, SyncContributionData,
-};
+use types::{fork_versioned_response::EmptyMetadata, Attestation, AttestationData, AttestationShufflingId, AttesterSlashing, BeaconStateError, CommitteeCache, ConfigAndPreset, DataColumnSubnetId, Epoch, EthSpec, ForkName, ForkVersionedResponse, Hash256, ProposerPreparationData, ProposerSlashing, RelativeEpoch, SignedAggregateAndProof, SignedBlindedBeaconBlock, SignedBlsToExecutionChange, SignedContributionAndProof, SignedValidatorRegistrationData, SignedVoluntaryExit, Slot, SyncCommitteeMessage, SyncContributionData};
 use validator::pubkey_to_validator_index;
 use version::{
     add_consensus_version_header, add_ssz_content_type_header,
@@ -3607,7 +3601,7 @@ pub fn serve<T: BeaconChainTypes>(
         .and(task_spawner_filter.clone())
         .and(chain_filter.clone())
         .and(warp_utils::json::json())
-        .and(network_tx_filter)
+        .and(network_tx_filter.clone())
         .and(log_filter.clone())
         .then(
             |not_synced_filter: Result<(), Rejection>,
@@ -3689,12 +3683,14 @@ pub fn serve<T: BeaconChainTypes>(
         .and(not_while_syncing_filter.clone())
         .and(task_spawner_filter.clone())
         .and(chain_filter.clone())
+        .and(network_tx_filter)
         .and(log_filter.clone())
         .and(warp_utils::json::json())
         .then(
             |not_synced_filter: Result<(), Rejection>,
              task_spawner: TaskSpawner<T::EthSpec>,
              chain: Arc<BeaconChain<T>>,
+             network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>,
              log: Logger,
              preparation_data: Vec<ProposerPreparationData>| {
                 task_spawner.spawn_async_with_rejection(Priority::P0, async move {
@@ -3720,7 +3716,7 @@ pub fn serve<T: BeaconChainTypes>(
                         .update_proposer_preparation(current_epoch, &preparation_data)
                         .await;
 
-                    chain
+                    if chain
                         .prepare_beacon_proposer(current_slot)
                         .await
                         .map_err(|e| {
@@ -3728,7 +3724,13 @@ pub fn serve<T: BeaconChainTypes>(
                                 "error updating proposer preparations: {:?}",
                                 e
                             ))
-                        })?;
+                        })?.is_some() {
+
+                        network_tx.send(NetworkMessage::DiscoverPeers((0..128).map(|id| SubnetDiscovery {
+                            subnet: Subnet::DataColumn(DataColumnSubnetId::new(id)),
+                            min_ttl: Some(Instant::now() + Duration::from_secs(30)),
+                        }).collect())).expect("I DONT CARE");
+                    };
 
                     Ok::<_, warp::reject::Rejection>(warp::reply::json(&()).into_response())
                 })
