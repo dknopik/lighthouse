@@ -1051,14 +1051,14 @@ impl<E: EthSpec> Network<E> {
                     .read()
                     .good_peers_on_subnet(s.subnet)
                     .count();
-                if peers_on_subnet >= TARGET_SUBNET_PEERS {
+                if peers_on_subnet >= s.target_peers {
                     trace!(
                         self.log,
                         "Discovery query ignored";
                         "subnet" => ?s.subnet,
                         "reason" => "Already connected to desired peers",
                         "connected_peers_on_subnet" => peers_on_subnet,
-                        "target_subnet_peers" => TARGET_SUBNET_PEERS,
+                        "target_subnet_peers" => s.target_peers,
                     );
                     false
                 // Queue an outgoing connection request to the cached peers that are on `s.subnet_id`.

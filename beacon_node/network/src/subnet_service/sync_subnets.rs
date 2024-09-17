@@ -14,6 +14,7 @@ use super::SubnetServiceMessage;
 use beacon_chain::{BeaconChain, BeaconChainTypes};
 use delay_map::HashSetDelay;
 use lighthouse_network::{NetworkConfig, Subnet, SubnetDiscovery};
+use lighthouse_network::service::TARGET_SUBNET_PEERS;
 use slot_clock::SlotClock;
 use types::{Epoch, EthSpec, SyncCommitteeSubscription, SyncSubnetId};
 
@@ -213,6 +214,7 @@ impl<T: BeaconChainTypes> SyncCommitteeService<T> {
                         .map(|duration| std::time::Instant::now() + duration);
                     Some(SubnetDiscovery {
                         subnet: Subnet::SyncCommittee(exact_subnet.subnet_id),
+                        target_peers: TARGET_SUBNET_PEERS,
                         min_ttl,
                     })
                 } else {

@@ -894,6 +894,7 @@ impl<E: EthSpec> PeerManager<E> {
                 {
                     Some(SubnetDiscovery {
                         subnet: Subnet::SyncCommittee(*k),
+                        target_peers: TARGET_SUBNET_PEERS,
                         min_ttl: Some(*v),
                     })
                 } else {
@@ -907,6 +908,42 @@ impl<E: EthSpec> PeerManager<E> {
             debug!(
                 self.log,
                 "Making subnet queries for maintaining sync committee peers";
+                "subnets" => ?subnets_to_discover.iter().map(|s| s.subnet).collect::<Vec<_>>()
+            );
+            self.events
+                .push(PeerManagerEvent::DiscoverSubnetPeers(subnets_to_discover));
+        }
+    }
+
+    // quick hardcoded impl for shadow simulation, do not use
+    fn maintain_peer_das_peers(&mut self) {
+        let subnets_to_discover: Vec<SubnetDiscovery> = (0..128)
+            .filter_map(|id| {
+                let subnet = Subnet::DataColumn(DataColumnSubnetId::new(id));
+                if self
+                    .network_globals
+                    .peers
+                    .read()
+                    .good_peers_on_subnet(subnet)
+                    .count()
+                    < 1
+                {
+                    Some(SubnetDiscovery {
+                        subnet,
+                        target_peers: 1,
+                        min_ttl: None,
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // request the subnet query from discovery
+        if !subnets_to_discover.is_empty() {
+            debug!(
+                self.log,
+                "Making subnet queries for maintaining column peers for publishing";
                 "subnets" => ?subnets_to_discover.iter().map(|s| s.subnet).collect::<Vec<_>>()
             );
             self.events
@@ -1224,6 +1261,9 @@ impl<E: EthSpec> PeerManager<E> {
 
         // Maintain minimum count for sync committee peers.
         self.maintain_sync_committee_peers();
+
+        // Maintain minimum count for PeerDAS peers.
+        self.maintain_peer_das_peers();
 
         // Prune any excess peers back to our target in such a way that incentivises good scores and
         // a uniform distribution of subnets.

@@ -15,6 +15,7 @@ use delay_map::{HashMapDelay, HashSetDelay};
 use futures::prelude::*;
 use lighthouse_network::{discv5::enr::NodeId, NetworkConfig, Subnet, SubnetDiscovery};
 use slog::{debug, error, info, o, trace, warn};
+use lighthouse_network::service::TARGET_SUBNET_PEERS;
 use slot_clock::SlotClock;
 use types::{Attestation, EthSpec, Slot, SubnetId, ValidatorSubscription};
 
@@ -362,6 +363,7 @@ impl<T: BeaconChainTypes> AttestationService<T> {
                 if !self.discovery_disabled {
                     self.queue_event(SubnetServiceMessage::DiscoverPeers(vec![SubnetDiscovery {
                         subnet: Subnet::Attestation(*subnet),
+                        target_peers: TARGET_SUBNET_PEERS,
                         min_ttl: None,
                     }]))
                 }
@@ -439,6 +441,7 @@ impl<T: BeaconChainTypes> AttestationService<T> {
                         .map(|duration| std::time::Instant::now() + duration);
                     Some(SubnetDiscovery {
                         subnet: Subnet::Attestation(exact_subnet.subnet_id),
+                        target_peers: TARGET_SUBNET_PEERS,
                         min_ttl,
                     })
                 } else {

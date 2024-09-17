@@ -20,6 +20,7 @@ pub enum Subnet {
 #[derive(Debug, Clone)]
 pub struct SubnetDiscovery {
     pub subnet: Subnet,
+    pub target_peers: usize,
     pub min_ttl: Option<Instant>,
 }
 
