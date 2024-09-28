@@ -415,7 +415,7 @@ impl EthSpec for MainnetEthSpec {
     type GasLimitDenominator = U1024;
     type MinGasLimit = U5000;
     type MaxExtraDataBytes = U32;
-    type MaxBlobsPerBlock = U8;
+    type MaxBlobsPerBlock = U6;
     type MaxBlobCommitmentsPerBlock = U4096;
     type BytesPerFieldElement = U32;
     type FieldElementsPerBlob = U4096;
