@@ -484,6 +484,14 @@ pub fn cli_app() -> Command {
                 .help_heading(FLAG_HEADER)
                 .display_order(0)
         )
+        .arg(
+            Arg::new("dont-idontwant")
+                .long("dont-idontwant")
+                .help("Disables gossipsub 1.2.0")
+                .action(ArgAction::SetTrue)
+                .help_heading(FLAG_HEADER)
+                .display_order(0)
+        )
         /* REST API related arguments */
         .arg(
             Arg::new("http")

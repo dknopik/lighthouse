@@ -141,6 +141,7 @@ pub struct Config {
 
     /// Configuration for the inbound rate limiter (requests received by this node).
     pub inbound_rate_limiter_config: Option<InboundRateLimiterConfig>,
+    pub dont_idontwant: bool,
 }
 
 impl Config {
@@ -352,6 +353,7 @@ impl Default for Config {
             outbound_rate_limiter_config: None,
             invalid_block_storage: None,
             inbound_rate_limiter_config: None,
+            dont_idontwant: false,
         }
     }
 }
@@ -433,6 +435,7 @@ pub fn gossipsub_config(
     gossipsub_config_params: GossipsubConfigParams,
     seconds_per_slot: u64,
     slots_per_epoch: u64,
+    dont_idontwant: bool,
 ) -> gossipsub::Config {
     fn prefix(
         prefix: [u8; 4],
@@ -483,7 +486,11 @@ pub fn gossipsub_config(
     // Hence we keep the same parameters for pre-deneb networks as well to avoid switching at the fork.
     let duplicate_cache_time = Duration::from_secs(slots_per_epoch * seconds_per_slot * 2);
 
-    gossipsub::ConfigBuilder::default()
+    let mut buildoor = gossipsub::ConfigBuilder::default();
+    if dont_idontwant {
+        buildoor.without_idontwant();
+    }
+    buildoor
         .max_transmit_size(gossip_max_size(
             is_bellatrix_enabled,
             gossipsub_config_params.gossip_max_size,

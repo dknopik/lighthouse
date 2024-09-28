@@ -82,6 +82,19 @@ impl Default for ProtocolConfig {
     }
 }
 
+impl ProtocolConfig {
+    pub fn without_idontwant() -> Self {
+        Self {
+            max_transmit_size: 65536,
+            validation_mode: ValidationMode::Strict,
+            protocol_ids: vec![
+                GOSSIPSUB_1_1_0_PROTOCOL,
+                GOSSIPSUB_1_0_0_PROTOCOL,
+            ],
+        }
+    }
+}
+
 /// The protocol ID
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProtocolId {

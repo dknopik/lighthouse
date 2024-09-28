@@ -206,6 +206,7 @@ impl<E: EthSpec> Network<E> {
             gossipsub_config_params,
             ctx.chain_spec.seconds_per_slot,
             E::slots_per_epoch(),
+            ctx.config.dont_idontwant,
         );
 
         let score_settings = PeerScoreSettings::new(&ctx.chain_spec, gs_config.mesh_n());

@@ -57,7 +57,7 @@ use super::handler::{Handler, HandlerEvent, HandlerIn};
 use super::mcache::MessageCache;
 use super::metrics::{Churn, Config as MetricsConfig, Inclusion, Metrics, Penalty};
 use super::peer_score::{PeerScore, PeerScoreParams, PeerScoreThresholds, RejectReason};
-use super::protocol::SIGNING_PREFIX;
+use super::protocol::{GOSSIPSUB_1_2_0_PROTOCOL, SIGNING_PREFIX};
 use super::rpc_proto::proto;
 use super::subscription_filter::{AllowAllSubscriptionFilter, TopicSubscriptionFilter};
 use super::time_cache::DuplicateCache;
@@ -1812,8 +1812,10 @@ where
         // Calculate the message id on the transformed data.
         let msg_id = self.config.message_id(&message);
 
-        // Broadcast IDONTWANT messages.
-        self.send_idontwant(&raw_message, &msg_id, propagation_source);
+        if self.config.protocol_config().protocol_ids.contains(&GOSSIPSUB_1_2_0_PROTOCOL) {
+            // Broadcast IDONTWANT messages.
+            self.send_idontwant(&raw_message, &msg_id, propagation_source);
+        }
 
         // Check the validity of the message
         // Peers get penalized if this message is invalid. We don't add it to the duplicate cache

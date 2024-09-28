@@ -456,6 +456,11 @@ impl From<Config> for ConfigBuilder {
 }
 
 impl ConfigBuilder {
+
+    pub fn without_idontwant(&mut self) {
+        self.config.protocol = ProtocolConfig::without_idontwant();
+    }
+
     /// The protocol id prefix to negotiate this protocol (default is `/meshsub/1.1.0` and `/meshsub/1.0.0`).
     pub fn protocol_id_prefix(
         &mut self,

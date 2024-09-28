@@ -1449,6 +1449,10 @@ pub fn set_network_config(
         config.discv5_config.table_filter = |_| true;
     }
 
+    if parse_flag(cli_args, "dont-idontwant") {
+        config.dont_idontwant = true;
+    }
+
     // Light client server config.
     config.enable_light_client_server = parse_flag(cli_args, "light-client-server");
 
