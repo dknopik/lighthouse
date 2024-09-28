@@ -1792,10 +1792,10 @@ impl Config {
             attestation_propagation_slot_range,
             maximum_gossip_clock_disparity_millis,
             max_request_blocks_deneb,
-            max_request_blob_sidecars,
+            max_request_blob_sidecars: _,
             max_request_data_column_sidecars,
             min_epochs_for_blob_sidecars_requests,
-            blob_sidecar_subnet_count,
+            blob_sidecar_subnet_count: _,
 
             min_per_epoch_churn_limit_electra,
             max_per_epoch_activation_exit_churn_limit,
@@ -1873,7 +1873,7 @@ impl Config {
             max_blocks_by_root_request_deneb: max_blocks_by_root_request_common(
                 max_request_blocks_deneb,
             ),
-            max_blobs_by_root_request: max_blobs_by_root_request_common(max_request_blob_sidecars),
+            max_blobs_by_root_request: max_blobs_by_root_request_common(1024),
             max_data_columns_by_root_request: max_data_columns_by_root_request_common(
                 max_request_data_column_sidecars,
             ),
