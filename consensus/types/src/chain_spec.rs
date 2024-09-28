@@ -1860,10 +1860,10 @@ impl Config {
             attestation_propagation_slot_range,
             maximum_gossip_clock_disparity_millis,
             max_request_blocks_deneb,
-            max_request_blob_sidecars,
+            max_request_blob_sidecars: 1024,
             max_request_data_column_sidecars,
             min_epochs_for_blob_sidecars_requests,
-            blob_sidecar_subnet_count,
+            blob_sidecar_subnet_count: 8,
 
             min_per_epoch_churn_limit_electra,
             max_per_epoch_activation_exit_churn_limit,
