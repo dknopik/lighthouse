@@ -115,6 +115,7 @@ use std::collections::HashSet;
 use std::io::prelude::*;
 use std::marker::PhantomData;
 use std::sync::Arc;
+use std::thread;
 use std::time::Duration;
 use store::iter::{BlockRootsIterator, ParentRootBlockIterator, StateRootsIterator};
 use store::{
@@ -2156,6 +2157,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     ) -> Result<GossipVerifiedBlob<T>, GossipBlobError> {
         metrics::inc_counter(&metrics::BLOBS_SIDECAR_PROCESSING_REQUESTS);
         let _timer = metrics::start_timer(&metrics::BLOBS_SIDECAR_GOSSIP_VERIFICATION_TIMES);
+        thread::sleep(Duration::from_millis(5));
         GossipVerifiedBlob::new(blob_sidecar, subnet_id, self).inspect(|_| {
             metrics::inc_counter(&metrics::BLOBS_SIDECAR_PROCESSING_SUCCESSES);
         })
