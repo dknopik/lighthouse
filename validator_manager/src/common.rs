@@ -1,5 +1,5 @@
 pub use account_utils::STDIN_INPUTS_FLAG;
-use account_utils::{strip_off_newlines, ZeroizeString};
+use account_utils::strip_off_newlines;
 use eth2::lighthouse_vc::std_types::{InterchangeJsonStr, KeystoreJsonStr};
 use eth2::{
     lighthouse_vc::{
@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tree_hash::TreeHash;
+use zeroize::Zeroizing;
 use types::*;
 
 pub const IGNORE_DUPLICATES_FLAG: &str = "ignore-duplicates";
@@ -41,7 +42,7 @@ pub enum UploadError {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ValidatorSpecification {
     pub voting_keystore: KeystoreJsonStr,
-    pub voting_keystore_password: ZeroizeString,
+    pub voting_keystore_password: Zeroizing<String>,
     pub slashing_protection: Option<InterchangeJsonStr>,
     pub fee_recipient: Option<Address>,
     pub gas_limit: Option<u64>,

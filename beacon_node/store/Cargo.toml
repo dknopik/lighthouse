@@ -33,6 +33,7 @@ zstd = { workspace = true }
 bls = { workspace = true }
 smallvec = { workspace = true }
 logging = { workspace = true }
+#eth2 = { workspace = true }
 
 [[bench]]
 name = "hdiff"
