@@ -32,8 +32,8 @@ use std::time::Duration;
 use types::graffiti::GraffitiString;
 use types::{Address, Graffiti, Keypair, PublicKey, PublicKeyBytes};
 use url::{ParseError, Url};
-use zeroize::Zeroizing;
 use validator_dir::Builder as ValidatorDirBuilder;
+use zeroize::Zeroizing;
 
 use key_cache::KeyCache;
 

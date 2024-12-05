@@ -1,5 +1,5 @@
-pub use account_utils::STDIN_INPUTS_FLAG;
 use account_utils::strip_off_newlines;
+pub use account_utils::STDIN_INPUTS_FLAG;
 use eth2::lighthouse_vc::std_types::{InterchangeJsonStr, KeystoreJsonStr};
 use eth2::{
     lighthouse_vc::{
@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tree_hash::TreeHash;
-use zeroize::Zeroizing;
 use types::*;
+use zeroize::Zeroizing;
 
 pub const IGNORE_DUPLICATES_FLAG: &str = "ignore-duplicates";
 pub const COUNT_FLAG: &str = "count";

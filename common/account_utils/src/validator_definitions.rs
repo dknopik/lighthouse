@@ -3,9 +3,7 @@
 //! Serves as the source-of-truth of which validators this validator client should attempt (or not
 //! attempt) to load into the `crate::intialized_validators::InitializedValidators` struct.
 
-use crate::{
-    default_keystore_password_path, read_password_string, write_file_via_temporary,
-};
+use crate::{default_keystore_password_path, read_password_string, write_file_via_temporary};
 use directory::ensure_dir_exists;
 use eth2_keystore::Keystore;
 use regex::Regex;
@@ -15,9 +13,9 @@ use std::collections::HashSet;
 use std::fs::{self, File};
 use std::io;
 use std::path::{Path, PathBuf};
-use zeroize::Zeroizing;
 use types::{graffiti::GraffitiString, Address, PublicKey};
 use validator_dir::VOTING_KEYSTORE_FILE;
+use zeroize::Zeroizing;
 
 /// The file name for the serialized `ValidatorDefinitions` struct.
 pub const CONFIG_FILENAME: &str = "validator_definitions.yml";

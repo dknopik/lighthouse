@@ -7,11 +7,11 @@ use account_utils::{
 use eth2::lighthouse_vc::types::{self as api_types};
 use slot_clock::SlotClock;
 use std::path::{Path, PathBuf};
-use zeroize::Zeroizing;
 use types::ChainSpec;
 use types::EthSpec;
 use validator_dir::{keystore_password_path, Builder as ValidatorDirBuilder};
 use validator_store::ValidatorStore;
+use zeroize::Zeroizing;
 
 /// Create some validator EIP-2335 keystores and store them on disk. Then, enroll the validators in
 /// this validator client.

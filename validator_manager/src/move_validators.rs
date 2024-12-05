@@ -18,8 +18,8 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Duration;
 use tokio::time::sleep;
-use zeroize::Zeroizing;
 use types::{Address, PublicKeyBytes};
+use zeroize::Zeroizing;
 
 pub const MOVE_DIR_NAME: &str = "lighthouse-validator-move";
 pub const VALIDATOR_SPECIFICATION_FILE: &str = "validator-specification.json";

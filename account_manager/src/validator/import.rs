@@ -186,7 +186,10 @@ pub fn cli_run(matches: &ArgMatches, validator_dir: PathBuf) -> Result<(), Strin
                     let password_from_file: Zeroizing<String> = fs::read_to_string(path)
                         .map_err(|e| format!("Unable to read {:?}: {:?}", path, e))?
                         .into();
-                    password_from_file.trim_end_matches(['\r', '\n']).to_string().into()
+                    password_from_file
+                        .trim_end_matches(['\r', '\n'])
+                        .to_string()
+                        .into()
                 }
                 None => {
                     let password_from_user = read_password_from_user(stdin_inputs)?;

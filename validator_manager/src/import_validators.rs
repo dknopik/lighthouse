@@ -9,8 +9,8 @@ use eth2::{lighthouse_vc::std_types::ImportKeystoreStatus, SensitiveUrl};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use zeroize::Zeroizing;
 use types::Address;
+use zeroize::Zeroizing;
 
 pub const CMD: &str = "import";
 pub const VALIDATORS_FILE_FLAG: &str = "validators-file";
@@ -383,9 +383,7 @@ async fn run<'a>(config: ImportConfig) -> Result<(), String> {
 pub mod tests {
     use super::*;
     use crate::create_validators::tests::TestBuilder as CreateTestBuilder;
-    use std::{
-        fs::{self, File},
-    };
+    use std::fs::{self, File};
     use tempfile::{tempdir, TempDir};
     use validator_http_api::{test_utils::ApiTester, Config as HttpConfig};
 
