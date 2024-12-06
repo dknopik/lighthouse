@@ -252,7 +252,7 @@ impl futures::stream::Stream for GossipCache {
                 let (topic, data) = expired.into_inner();
                 let topic_msg = self.topic_msgs.get_mut(&topic);
                 debug_assert!(
-                    topic_msg.is_none(),
+                    topic_msg.is_some(),
                     "Topic for registered message is not present."
                 );
                 if let Some(msgs) = topic_msg {
