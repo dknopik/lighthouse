@@ -3508,7 +3508,7 @@ impl ApiTester {
         self
     }
 
-    #[allow(clippy::await_holding_lock)]  // This is a test, so it should be fine.
+    #[allow(clippy::await_holding_lock)] // This is a test, so it should be fine.
     pub async fn test_get_validator_aggregate_attestation(self) -> Self {
         if self
             .chain
@@ -6053,30 +6053,30 @@ async fn test_unsupported_media_response() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn beacon_get() {
+async fn beacon_get_state_hashes() {
+    ApiTester::new()
+        .await
+        .test_beacon_states_root_finalized()
+        .await
+        .test_beacon_states_finality_checkpoints_finalized()
+        .await
+        .test_beacon_states_root()
+        .await
+        .test_beacon_states_finality_checkpoints()
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn beacon_get_state_info() {
     ApiTester::new()
         .await
         .test_beacon_genesis()
         .await
-        .test_beacon_states_root_finalized()
-        .await
         .test_beacon_states_fork_finalized()
-        .await
-        .test_beacon_states_finality_checkpoints_finalized()
-        .await
-        .test_beacon_headers_block_id_finalized()
-        .await
-        .test_beacon_blocks_finalized()
-        .await
-        .test_beacon_blinded_blocks_finalized()
         .await
         .test_debug_beacon_states_finalized()
         .await
-        .test_beacon_states_root()
-        .await
         .test_beacon_states_fork()
-        .await
-        .test_beacon_states_finality_checkpoints()
         .await
         .test_beacon_states_validators()
         .await
@@ -6087,6 +6087,18 @@ async fn beacon_get() {
         .test_beacon_states_validator_id()
         .await
         .test_beacon_states_randao()
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn beacon_get_blocks() {
+    ApiTester::new()
+        .await
+        .test_beacon_headers_block_id_finalized()
+        .await
+        .test_beacon_blocks_finalized()
+        .await
+        .test_beacon_blinded_blocks_finalized()
         .await
         .test_beacon_headers_all_slots()
         .await
@@ -6101,6 +6113,12 @@ async fn beacon_get() {
         .test_beacon_blocks_attestations()
         .await
         .test_beacon_blocks_root()
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn beacon_get_pools() {
+    ApiTester::new()
         .await
         .test_get_beacon_pool_attestations()
         .await

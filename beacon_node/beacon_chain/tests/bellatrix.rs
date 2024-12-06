@@ -133,7 +133,7 @@ async fn base_altair_bellatrix_with_terminal_block_after_fork() {
      * Do the Bellatrix fork, without a terminal PoW block.
      */
 
-    harness.extend_to_slot(bellatrix_fork_slot).await;
+    Box::pin(harness.extend_to_slot(bellatrix_fork_slot)).await;
 
     let bellatrix_head = &harness.chain.head_snapshot().beacon_block;
     assert!(bellatrix_head.as_bellatrix().is_ok());
