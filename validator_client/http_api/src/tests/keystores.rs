@@ -2147,8 +2147,11 @@ async fn import_remotekey_web3signer_enabled() {
         // 1 validator imported.
         assert_eq!(tester.vals_total(), 1);
         assert_eq!(tester.vals_enabled(), 1);
-        let vals = tester.initialized_validators.read();
-        let web3_vals = vals.validator_definitions();
+        let web3_vals = tester
+            .initialized_validators
+            .read()
+            .validator_definitions()
+            .to_vec();
 
         // Import remotekeys.
         let import_res = tester
@@ -2165,11 +2168,13 @@ async fn import_remotekey_web3signer_enabled() {
 
         assert_eq!(tester.vals_total(), 1);
         assert_eq!(tester.vals_enabled(), 1);
-        let vals = tester.initialized_validators.read();
-        let remote_vals = vals.validator_definitions();
+        {
+            let vals = tester.initialized_validators.read();
+            let remote_vals = vals.validator_definitions();
 
-        // Web3signer should not be overwritten since it is enabled.
-        assert!(web3_vals == remote_vals);
+            // Web3signer should not be overwritten since it is enabled.
+            assert!(web3_vals == remote_vals);
+        }
 
         // Remotekey should not be imported.
         let expected_responses = vec![SingleListRemotekeysResponse {

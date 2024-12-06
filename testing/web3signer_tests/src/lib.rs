@@ -175,11 +175,8 @@ mod tests {
                     // Read a Github API token from the environment. This is intended to prevent rate-limits on CI.
                     // We use a name that is unlikely to accidentally collide with anything the user has configured.
                     let github_token = env::var("LIGHTHOUSE_GITHUB_TOKEN");
-                    download_binary(
-                        TEMP_DIR.lock().path().to_path_buf(),
-                        github_token.as_deref().unwrap_or(""),
-                    )
-                    .await;
+                    let dest_dir = TEMP_DIR.lock().path().to_path_buf();
+                    download_binary(dest_dir, github_token.as_deref().unwrap_or("")).await;
                 })
                 .await;
 

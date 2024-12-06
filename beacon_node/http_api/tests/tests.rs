@@ -3508,6 +3508,7 @@ impl ApiTester {
         self
     }
 
+    #[allow(clippy::await_holding_lock)]  // This is a test, so it should be fine.
     pub async fn test_get_validator_aggregate_attestation(self) -> Self {
         if self
             .chain
