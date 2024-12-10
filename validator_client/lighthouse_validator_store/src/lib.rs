@@ -3,6 +3,7 @@ use doppelganger_service::{DoppelgangerService, DoppelgangerValidatorStore};
 use initialized_validators::InitializedValidators;
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
+use signing_method::Error as SigningError;
 use signing_method::{SignableMessage, SigningContext, SigningMethod};
 use slashing_protection::{
     interchange::Interchange, InterchangeError, NotSafe, Safe, SlashingDatabase,
@@ -21,7 +22,11 @@ use types::{
     SyncCommitteeMessage, SyncSelectionProof, SyncSubnetId, ValidatorRegistrationData,
     VoluntaryExit,
 };
-use validator_store::{DoppelgangerStatus, Error, ProposalData, ValidatorStore};
+use validator_store::{
+    DoppelgangerStatus, Error as ValidatorStoreError, ProposalData, ValidatorStore,
+};
+
+pub type Error = ValidatorStoreError<SigningError>;
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -426,6 +431,7 @@ impl<T: SlotClock + 'static> LighthouseValidatorStore<T> {
 }
 
 impl<T: SlotClock + 'static> ValidatorStore for LighthouseValidatorStore<T> {
+    type Error = SigningError;
     /// Attempts to resolve the pubkey to a validator index.
     ///
     /// It may return `None` if the `pubkey` is:
@@ -902,7 +908,7 @@ impl<T: SlotClock + 'static> ValidatorStore for LighthouseValidatorStore<T> {
                 &self.task_executor,
             )
             .await
-            .map_err(Error::UnableToSign)?;
+            .map_err(Error::SpecificError)?;
 
         validator_metrics::inc_counter_vec(
             &validator_metrics::SIGNED_SELECTION_PROOFS_TOTAL,
@@ -944,7 +950,7 @@ impl<T: SlotClock + 'static> ValidatorStore for LighthouseValidatorStore<T> {
                 &self.task_executor,
             )
             .await
-            .map_err(Error::UnableToSign)?;
+            .map_err(Error::SpecificError)?;
 
         Ok(signature.into())
     }
@@ -973,7 +979,7 @@ impl<T: SlotClock + 'static> ValidatorStore for LighthouseValidatorStore<T> {
                 &self.task_executor,
             )
             .await
-            .map_err(Error::UnableToSign)?;
+            .map_err(Error::SpecificError)?;
 
         validator_metrics::inc_counter_vec(
             &validator_metrics::SIGNED_SYNC_COMMITTEE_MESSAGES_TOTAL,
@@ -1015,7 +1021,7 @@ impl<T: SlotClock + 'static> ValidatorStore for LighthouseValidatorStore<T> {
                 &self.task_executor,
             )
             .await
-            .map_err(Error::UnableToSign)?;
+            .map_err(Error::SpecificError)?;
 
         validator_metrics::inc_counter_vec(
             &validator_metrics::SIGNED_SYNC_COMMITTEE_CONTRIBUTIONS_TOTAL,
