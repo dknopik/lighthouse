@@ -42,7 +42,6 @@ dependencies = [
 name = "account_utils"
 version = "0.1.0"
 dependencies = [
- "directory",
  "eth2_keystore",
  "eth2_wallet",
  "filesystem",
@@ -9533,7 +9532,6 @@ dependencies = [
  "bls",
  "deposit_contract",
  "derivative",
- "directory",
  "eth2_keystore",
  "filesystem",
  "hex",

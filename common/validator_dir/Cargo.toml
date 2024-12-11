@@ -20,7 +20,6 @@ tree_hash = { workspace = true }
 hex = { workspace = true }
 derivative = { workspace = true }
 lockfile = { workspace = true }
-directory = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

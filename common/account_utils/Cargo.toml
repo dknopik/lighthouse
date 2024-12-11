@@ -19,4 +19,3 @@ types = { workspace = true }
 validator_dir = { workspace = true }
 regex = { workspace = true }
 rpassword = "5.0.0"
-directory = { workspace = true }
