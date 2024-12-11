@@ -9797,7 +9797,6 @@ dependencies = [
 name = "warp_utils"
 version = "0.1.0"
 dependencies = [
- "beacon_chain",
  "bytes",
  "eth2",
  "headers",
@@ -9806,7 +9805,6 @@ dependencies = [
  "serde",
  "serde_array_query",
  "serde_json",
- "state_processing",
  "tokio",
  "types",
  "warp",
