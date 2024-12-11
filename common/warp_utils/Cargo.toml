@@ -10,8 +10,6 @@ edition = { workspace = true }
 warp = { workspace = true }
 eth2 = { workspace = true }
 types = { workspace = true }
-beacon_chain = { workspace = true }
-state_processing = { workspace = true }
 safe_arith = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
