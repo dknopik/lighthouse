@@ -895,7 +895,6 @@ name = "beacon_node_fallback"
 version = "0.1.0"
 dependencies = [
  "clap",
- "environment",
  "eth2",
  "futures",
  "itertools 0.10.5",
@@ -904,6 +903,7 @@ dependencies = [
  "slog",
  "slot_clock",
  "strum",
+ "task_executor",
  "tokio",
  "types",
  "validator_metrics",
