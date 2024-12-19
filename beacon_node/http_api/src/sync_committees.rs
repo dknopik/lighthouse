@@ -197,7 +197,7 @@ pub fn process_sync_committee_signatures<T: BeaconChainTypes>(
                     "error" => ?e,
                     "slot" => sync_committee_signature.slot,
                 );
-                failures.push(api_types::Failure::new(i, format!("Verification: {:?}", e)));
+                failures.push(warp_utils::types::Failure::new(i, format!("Verification: {:?}", e)));
                 continue;
             }
         };
@@ -265,7 +265,7 @@ pub fn process_sync_committee_signatures<T: BeaconChainTypes>(
                         "slot" => sync_committee_signature.slot,
                         "validator_index" => sync_committee_signature.validator_index,
                     );
-                    failures.push(api_types::Failure::new(i, format!("Verification: {:?}", e)));
+                    failures.push(warp_utils::types::Failure::new(i, format!("Verification: {:?}", e)));
                 }
             }
         }
@@ -370,7 +370,7 @@ pub fn process_signed_contribution_and_proofs<T: BeaconChainTypes>(
                     "subcommittee_index" => subcommittee_index,
                     "contribution_slot" => contribution_slot,
                 );
-                failures.push(api_types::Failure::new(
+                failures.push(warp_utils::types::Failure::new(
                     index,
                     format!("Verification: {:?}", e),
                 ));
@@ -387,7 +387,7 @@ pub fn process_signed_contribution_and_proofs<T: BeaconChainTypes>(
                 "error" => ?e,
                 "request_index" => index,
             );
-            failures.push(api_types::Failure::new(index, format!("Op pool: {:?}", e)));
+            failures.push(warp_utils::types::Failure::new(index, format!("Op pool: {:?}", e)));
         }
     }
 

@@ -1,10 +1,12 @@
 use bytes::Bytes;
-use eth2::{CONTENT_TYPE_HEADER, SSZ_CONTENT_TYPE_HEADER};
 use serde::de::DeserializeOwned;
 use std::error::Error as StdError;
 use warp::{Filter, Rejection};
 
 use crate::reject;
+
+const SSZ_CONTENT_TYPE_HEADER: &str = "application/octet-stream";
+const CONTENT_TYPE_HEADER: &str = "Content-Type";
 
 struct Json;
 

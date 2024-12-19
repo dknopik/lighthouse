@@ -8,7 +8,6 @@ edition = { workspace = true }
 
 [dependencies]
 warp = { workspace = true }
-eth2 = { workspace = true }
 types = { workspace = true }
 safe_arith = { workspace = true }
 serde = { workspace = true }
@@ -18,3 +17,4 @@ headers = "0.3.2"
 metrics = { workspace = true }
 serde_array_query = "0.1.0"
 bytes = { workspace = true }
+reqwest = { workspace = true }

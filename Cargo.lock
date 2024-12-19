@@ -9770,9 +9770,9 @@ name = "warp_utils"
 version = "0.1.0"
 dependencies = [
  "bytes",
- "eth2",
  "headers",
  "metrics",
+ "reqwest",
  "safe_arith",
  "serde",
  "serde_array_query",

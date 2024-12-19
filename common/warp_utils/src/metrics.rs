@@ -1,4 +1,4 @@
-use eth2::lighthouse::{ProcessHealth, SystemHealth};
+use crate::health::{ProcessHealth, SystemHealth};
 use metrics::*;
 use std::sync::LazyLock;
 

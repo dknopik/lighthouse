@@ -40,7 +40,7 @@ use beacon_chain::{
     BeaconChainTypes,
 };
 use beacon_processor::work_reprocessing_queue::{QueuedUnaggregate, ReprocessQueueMessage};
-use eth2::types::Failure;
+use warp_utils::types::Failure;
 use lighthouse_network::PubsubMessage;
 use network::NetworkMessage;
 use slog::{debug, error, warn, Logger};

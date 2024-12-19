@@ -1,4 +1,4 @@
-use eth2::types::{ErrorMessage, Failure, IndexedErrorMessage};
+use crate::types::{ErrorMessage, Failure, IndexedErrorMessage};
 use std::convert::Infallible;
 use std::error::Error;
 use std::fmt;
@@ -243,7 +243,7 @@ pub async fn convert_rejection<T: Reply>(res: Result<T, warp::Rejection>) -> Res
             #[allow(unreachable_patterns)]
             Err(_) => warp::reply::with_status(
                 warp::reply::json(&"unhandled error"),
-                eth2::StatusCode::INTERNAL_SERVER_ERROR,
+                reqwest::StatusCode::INTERNAL_SERVER_ERROR,
             )
             .into_response(),
         },

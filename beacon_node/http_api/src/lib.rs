@@ -2234,7 +2234,7 @@ pub fn serve<T: BeaconChainTypes>(
                                     "reason" => ?e,
                                     "source" => "HTTP",
                                 );
-                                failures.push(api_types::Failure::new(
+                                failures.push(warp_utils::types::Failure::new(
                                     index,
                                     format!("invalid: {e:?}"),
                                 ));
@@ -3539,7 +3539,7 @@ pub fn serve<T: BeaconChainTypes>(
                                     "attestation_index" => aggregate.message().aggregate().committee_index(),
                                     "attestation_slot" => aggregate.message().aggregate().data().slot,
                                 );
-                                failures.push(api_types::Failure::new(index, format!("Verification: {:?}", e)));
+                                failures.push(warp_utils::types::Failure::new(index, format!("Verification: {:?}", e)));
                             }
                         }
                     }
@@ -3560,7 +3560,7 @@ pub fn serve<T: BeaconChainTypes>(
                                     "attestation_index" => verified_aggregate.attestation().committee_index(),
                                     "attestation_slot" => verified_aggregate.attestation().data().slot,
                                 );
-                            failures.push(api_types::Failure::new(index, format!("Fork choice: {:?}", e)));
+                            failures.push(warp_utils::types::Failure::new(index, format!("Fork choice: {:?}", e)));
                         }
                         if let Err(e) = chain.add_to_block_inclusion_pool(verified_aggregate) {
                             warn!(
@@ -3569,7 +3569,7 @@ pub fn serve<T: BeaconChainTypes>(
                                 "error" => ?e,
                                 "request_index" => index,
                             );
-                            failures.push(api_types::Failure::new(index, format!("Op pool: {:?}", e)));
+                            failures.push(warp_utils::types::Failure::new(index, format!("Op pool: {:?}", e)));
                         }
                     }
 
