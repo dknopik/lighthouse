@@ -5724,6 +5724,7 @@ name = "monitoring_api"
 version = "0.1.0"
 dependencies = [
  "eth2",
+ "health_metrics",
  "lighthouse_version",
  "metrics",
  "regex",
