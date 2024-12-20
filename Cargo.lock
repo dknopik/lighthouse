@@ -3981,6 +3981,7 @@ name = "http_metrics"
 version = "0.1.0"
 dependencies = [
  "beacon_chain",
+ "health_metrics",
  "lighthouse_network",
  "lighthouse_version",
  "logging",
@@ -9599,6 +9600,7 @@ dependencies = [
 name = "validator_http_metrics"
 version = "0.1.0"
 dependencies = [
+ "health_metrics",
  "lighthouse_version",
  "malloc_utils",
  "metrics",
