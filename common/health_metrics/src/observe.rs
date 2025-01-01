@@ -1,6 +1,28 @@
-use eth2::lighthouse::{ProcessHealth, SystemHealth};
+use eth2::lighthouse::{Health, ProcessHealth, SystemHealth};
+
+#[cfg(target_os = "linux")]
+use {
+    psutil::cpu::os::linux::CpuTimesExt, psutil::memory::os::linux::VirtualMemoryExt,
+    psutil::process::Process,
+};
+
 pub trait Observe: Sized {
     fn observe() -> Result<Self, String>;
+}
+
+impl Observe for Health {
+    #[cfg(not(target_os = "linux"))]
+    fn observe() -> Result<Self, String> {
+        Err("Health is only available on Linux".into())
+    }
+
+    #[cfg(target_os = "linux")]
+    fn observe() -> Result<Self, String> {
+        Ok(Self {
+            process: ProcessHealth::observe()?,
+            system: SystemHealth::observe()?,
+        })
+    }
 }
 
 impl Observe for SystemHealth {

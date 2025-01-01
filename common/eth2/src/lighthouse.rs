@@ -88,12 +88,6 @@ pub struct ValidatorInclusionData {
     pub is_previous_epoch_head_attester: bool,
 }
 
-#[cfg(target_os = "linux")]
-use {
-    psutil::cpu::os::linux::CpuTimesExt, psutil::memory::os::linux::VirtualMemoryExt,
-    psutil::process::Process,
-};
-
 /// Reports on the health of the Lighthouse instance.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Health {
@@ -179,21 +173,6 @@ pub struct ProcessHealth {
     pub pid_mem_shared_memory_size: u64,
     /// Number of cpu seconds consumed by this pid.
     pub pid_process_seconds_total: u64,
-}
-
-impl Health {
-    #[cfg(not(target_os = "linux"))]
-    pub fn observe() -> Result<Self, String> {
-        Err("Health is only available on Linux".into())
-    }
-
-    #[cfg(target_os = "linux")]
-    pub fn observe() -> Result<Self, String> {
-        Ok(Self {
-            process: ProcessHealth::observe()?,
-            system: SystemHealth::observe()?,
-        })
-    }
 }
 
 /// Indicates how up-to-date the Eth1 caches are.
