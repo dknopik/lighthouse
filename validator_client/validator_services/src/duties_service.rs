@@ -124,13 +124,13 @@ pub struct SubscriptionSlots {
 /// Create a selection proof for `duty`.
 ///
 /// Return `Ok(None)` if the attesting validator is not an aggregator.
-async fn make_selection_proof<S: ValidatorStore + 'static, E: EthSpec>(
+async fn make_selection_proof<S: ValidatorStore + 'static>(
     duty: &AttesterData,
     validator_store: &S,
     spec: &ChainSpec,
 ) -> Result<Option<SelectionProof>, Error<S::Error>> {
     let selection_proof = validator_store
-        .produce_selection_proof::<E>(duty.pubkey, duty.slot)
+        .produce_selection_proof(duty.pubkey, duty.slot)
         .await
         .map_err(Error::FailedToProduceSelectionProof)?;
 
@@ -278,7 +278,7 @@ impl<S, T> DutiesServiceBuilder<S, T> {
         self
     }
 
-    pub fn build<E: EthSpec>(self) -> Result<DutiesService<S, T, E>, String> {
+    pub fn build<E: EthSpec>(self) -> Result<DutiesService<S, T>, String> {
         Ok(DutiesService {
             attesters: Default::default(),
             proposers: Default::default(),
@@ -304,7 +304,7 @@ impl<S, T> DutiesServiceBuilder<S, T> {
 }
 
 /// See the module-level documentation.
-pub struct DutiesService<S, T, E: EthSpec> {
+pub struct DutiesService<S, T> {
     /// Maps a validator public key to their duties for each epoch.
     pub attesters: RwLock<AttesterMap>,
     /// Maps an epoch to all *local* proposers in this epoch. Notably, this does not contain
@@ -330,7 +330,7 @@ pub struct DutiesService<S, T, E: EthSpec> {
     pub distributed: bool,
 }
 
-impl<S: ValidatorStore, T: SlotClock + 'static, E: EthSpec> DutiesService<S, T, E> {
+impl<S: ValidatorStore, T: SlotClock + 'static> DutiesService<S, T> {
     /// Returns the total number of validators known to the duties service.
     pub fn total_validator_count(&self) -> usize {
         self.validator_store.num_voting_validators()
@@ -381,7 +381,7 @@ impl<S: ValidatorStore, T: SlotClock + 'static, E: EthSpec> DutiesService<S, T, 
     /// It is possible that multiple validators have an identical proposal slot, however that is
     /// likely the result of heavy forking (lol) or inconsistent beacon node connections.
     pub fn block_proposers(&self, slot: Slot) -> HashSet<PublicKeyBytes> {
-        let epoch = slot.epoch(E::slots_per_epoch());
+        let epoch = slot.epoch(S::E::slots_per_epoch());
 
         // Only collect validators that are considered safe in terms of doppelganger protection.
         let signing_pubkeys: HashSet<_> = self
@@ -406,7 +406,7 @@ impl<S: ValidatorStore, T: SlotClock + 'static, E: EthSpec> DutiesService<S, T, 
 
     /// Returns all `ValidatorDuty` for the given `slot`.
     pub fn attesters(&self, slot: Slot) -> Vec<DutyAndProof> {
-        let epoch = slot.epoch(E::slots_per_epoch());
+        let epoch = slot.epoch(S::E::slots_per_epoch());
 
         // Only collect validators that are considered safe in terms of doppelganger protection.
         let signing_pubkeys: HashSet<_> = self
@@ -444,8 +444,8 @@ impl<S: ValidatorStore, T: SlotClock + 'static, E: EthSpec> DutiesService<S, T, 
 /// process every slot, which has the chance of creating a theoretically unlimited backlog of tasks.
 /// It was a conscious decision to choose to drop tasks on an overloaded/latent system rather than
 /// overload it even more.
-pub fn start_update_service<S: ValidatorStore + 'static, T: SlotClock + 'static, E: EthSpec>(
-    core_duties_service: Arc<DutiesService<S, T, E>>,
+pub fn start_update_service<S: ValidatorStore + 'static, T: SlotClock + 'static>(
+    core_duties_service: Arc<DutiesService<S, T>>,
     mut block_service_tx: Sender<BlockServiceNotification>,
 ) {
     /*
@@ -558,8 +558,8 @@ pub fn start_update_service<S: ValidatorStore + 'static, T: SlotClock + 'static,
 
 /// Iterate through all the voting pubkeys in the `ValidatorStore` and attempt to learn any unknown
 /// validator indices.
-async fn poll_validator_indices<S: ValidatorStore, T: SlotClock + 'static, E: EthSpec>(
-    duties_service: &DutiesService<S, T, E>,
+async fn poll_validator_indices<S: ValidatorStore, T: SlotClock + 'static>(
+    duties_service: &DutiesService<S, T>,
 ) {
     let _timer = validator_metrics::start_timer_vec(
         &validator_metrics::DUTIES_SERVICE_TIMES,
@@ -585,7 +585,7 @@ async fn poll_validator_indices<S: ValidatorStore, T: SlotClock + 'static, E: Et
             let current_slot_opt = duties_service.slot_clock.now();
 
             if let Some(current_slot) = current_slot_opt {
-                let is_first_slot_of_epoch = current_slot % E::slots_per_epoch() == 0;
+                let is_first_slot_of_epoch = current_slot % S::E::slots_per_epoch() == 0;
 
                 // Query an unknown validator later if it was queried within the last epoch, or if
                 // the current slot is the first slot of an epoch.
@@ -647,7 +647,7 @@ async fn poll_validator_indices<S: ValidatorStore, T: SlotClock + 'static, E: Et
                 // the beacon chain.
                 Ok(None) => {
                     if let Some(current_slot) = current_slot_opt {
-                        let next_poll_slot = current_slot.saturating_add(E::slots_per_epoch());
+                        let next_poll_slot = current_slot.saturating_add(S::E::slots_per_epoch());
                         duties_service
                             .unknown_validator_next_poll_slots
                             .write()
@@ -678,8 +678,8 @@ async fn poll_validator_indices<S: ValidatorStore, T: SlotClock + 'static, E: Et
 /// 2. As above, but for the next-epoch.
 /// 3. Push out any attestation subnet subscriptions to the BN.
 /// 4. Prune old entries from `duties_service.attesters`.
-async fn poll_beacon_attesters<S: ValidatorStore + 'static, T: SlotClock + 'static, E: EthSpec>(
-    duties_service: &Arc<DutiesService<S, T, E>>,
+async fn poll_beacon_attesters<S: ValidatorStore + 'static, T: SlotClock + 'static>(
+    duties_service: &Arc<DutiesService<S, T>>,
 ) -> Result<(), Error<S::Error>> {
     let current_epoch_timer = validator_metrics::start_timer_vec(
         &validator_metrics::DUTIES_SERVICE_TIMES,
@@ -690,7 +690,7 @@ async fn poll_beacon_attesters<S: ValidatorStore + 'static, T: SlotClock + 'stat
         .slot_clock
         .now()
         .ok_or(Error::UnableToReadSlotClock)?;
-    let current_epoch = current_slot.epoch(E::slots_per_epoch());
+    let current_epoch = current_slot.epoch(S::E::slots_per_epoch());
     let next_epoch = current_epoch + 1;
 
     // Collect *all* pubkeys, even those undergoing doppelganger protection.
@@ -729,7 +729,7 @@ async fn poll_beacon_attesters<S: ValidatorStore + 'static, T: SlotClock + 'stat
         )
     }
 
-    update_per_validator_duty_metrics::<S, T, E>(duties_service, current_epoch, current_slot);
+    update_per_validator_duty_metrics(duties_service, current_epoch, current_slot);
 
     drop(current_epoch_timer);
     let next_epoch_timer = validator_metrics::start_timer_vec(
@@ -750,7 +750,7 @@ async fn poll_beacon_attesters<S: ValidatorStore + 'static, T: SlotClock + 'stat
         )
     }
 
-    update_per_validator_duty_metrics::<S, T, E>(duties_service, next_epoch, current_slot);
+    update_per_validator_duty_metrics(duties_service, next_epoch, current_slot);
 
     drop(next_epoch_timer);
     let subscriptions_timer = validator_metrics::start_timer_vec(
@@ -771,7 +771,7 @@ async fn poll_beacon_attesters<S: ValidatorStore + 'static, T: SlotClock + 'stat
         * std::cmp::max(
             1,
             local_pubkeys.len() * ATTESTATION_SUBSCRIPTION_OFFSETS.len()
-                / E::slots_per_epoch() as usize,
+                / S::E::slots_per_epoch() as usize,
         )
         / overallocation_denominator;
     let mut subscriptions = Vec::with_capacity(num_expected_subscriptions);
@@ -867,12 +867,8 @@ async fn poll_beacon_attesters<S: ValidatorStore + 'static, T: SlotClock + 'stat
 
 /// For the given `local_indices` and `local_pubkeys`, download the duties for the given `epoch` and
 /// store them in `duties_service.attesters`.
-async fn poll_beacon_attesters_for_epoch<
-    S: ValidatorStore + 'static,
-    T: SlotClock + 'static,
-    E: EthSpec,
->(
-    duties_service: &Arc<DutiesService<S, T, E>>,
+async fn poll_beacon_attesters_for_epoch<S: ValidatorStore + 'static, T: SlotClock + 'static>(
+    duties_service: &Arc<DutiesService<S, T>>,
     epoch: Epoch,
     local_indices: &[u64],
     local_pubkeys: &HashSet<PublicKeyBytes>,
@@ -1031,8 +1027,8 @@ async fn poll_beacon_attesters_for_epoch<
 }
 
 /// Get a filtered list of local validators for which we don't already know their duties for that epoch
-fn get_uninitialized_validators<S: ValidatorStore, T: SlotClock + 'static, E: EthSpec>(
-    duties_service: &Arc<DutiesService<S, T, E>>,
+fn get_uninitialized_validators<S: ValidatorStore, T: SlotClock + 'static>(
+    duties_service: &Arc<DutiesService<S, T>>,
     epoch: &Epoch,
     local_pubkeys: &HashSet<PublicKeyBytes>,
 ) -> Vec<u64> {
@@ -1048,8 +1044,8 @@ fn get_uninitialized_validators<S: ValidatorStore, T: SlotClock + 'static, E: Et
         .collect::<Vec<_>>()
 }
 
-fn update_per_validator_duty_metrics<S: ValidatorStore, T: SlotClock + 'static, E: EthSpec>(
-    duties_service: &Arc<DutiesService<S, T, E>>,
+fn update_per_validator_duty_metrics<S: ValidatorStore, T: SlotClock + 'static>(
+    duties_service: &Arc<DutiesService<S, T>>,
     epoch: Epoch,
     current_slot: Slot,
 ) {
@@ -1064,14 +1060,14 @@ fn update_per_validator_duty_metrics<S: ValidatorStore, T: SlotClock + 'static, 
                     get_int_gauge(&ATTESTATION_DUTY, &[&validator_index.to_string()])
                 {
                     let existing_slot = Slot::new(existing_slot_gauge.get() as u64);
-                    let existing_epoch = existing_slot.epoch(E::slots_per_epoch());
+                    let existing_epoch = existing_slot.epoch(S::E::slots_per_epoch());
 
                     // First condition ensures that we switch to the next epoch duty slot
                     // once the current epoch duty slot passes.
                     // Second condition is to ensure that next epoch duties don't override
                     // current epoch duties.
                     if existing_slot < current_slot
-                        || (duty_slot.epoch(E::slots_per_epoch()) <= existing_epoch
+                        || (duty_slot.epoch(S::E::slots_per_epoch()) <= existing_epoch
                             && duty_slot > current_slot
                             && duty_slot != existing_slot)
                     {
@@ -1089,8 +1085,8 @@ fn update_per_validator_duty_metrics<S: ValidatorStore, T: SlotClock + 'static, 
     }
 }
 
-async fn post_validator_duties_attester<S: ValidatorStore, T: SlotClock + 'static, E: EthSpec>(
-    duties_service: &Arc<DutiesService<S, T, E>>,
+async fn post_validator_duties_attester<S: ValidatorStore, T: SlotClock + 'static>(
+    duties_service: &Arc<DutiesService<S, T>>,
     epoch: Epoch,
     validator_indices: &[u64],
 ) -> Result<DutiesResponse<Vec<AttesterData>>, Error<S::Error>> {
@@ -1113,12 +1109,8 @@ async fn post_validator_duties_attester<S: ValidatorStore, T: SlotClock + 'stati
 ///
 /// Duties are computed in batches each slot. If a re-org is detected then the process will
 /// terminate early as it is assumed the selection proofs from `duties` are no longer relevant.
-async fn fill_in_selection_proofs<
-    S: ValidatorStore + 'static,
-    T: SlotClock + 'static,
-    E: EthSpec,
->(
-    duties_service: Arc<DutiesService<S, T, E>>,
+async fn fill_in_selection_proofs<S: ValidatorStore + 'static, T: SlotClock + 'static>(
+    duties_service: Arc<DutiesService<S, T>>,
     duties: Vec<AttesterData>,
     dependent_root: Hash256,
 ) {
@@ -1167,7 +1159,7 @@ async fn fill_in_selection_proofs<
             // Sign selection proofs (serially).
             let duty_and_proof_results = stream::iter(relevant_duties.into_values().flatten())
                 .then(|duty| async {
-                    let opt_selection_proof = make_selection_proof::<S, E>(
+                    let opt_selection_proof = make_selection_proof(
                         &duty,
                         duties_service.validator_store.as_ref(),
                         &duties_service.spec,
@@ -1208,7 +1200,7 @@ async fn fill_in_selection_proofs<
                 };
 
                 let attester_map = attesters.entry(duty.pubkey).or_default();
-                let epoch = duty.slot.epoch(E::slots_per_epoch());
+                let epoch = duty.slot.epoch(S::E::slots_per_epoch());
                 match attester_map.entry(epoch) {
                     hash_map::Entry::Occupied(mut entry) => {
                         // No need to update duties for which no proof was computed.
@@ -1285,8 +1277,8 @@ async fn fill_in_selection_proofs<
 /// through the slow path every time. I.e., the proposal will only happen after we've been able to
 /// download and process the duties from the BN. This means it is very important to ensure this
 /// function is as fast as possible.
-async fn poll_beacon_proposers<S: ValidatorStore, T: SlotClock + 'static, E: EthSpec>(
-    duties_service: &DutiesService<S, T, E>,
+async fn poll_beacon_proposers<S: ValidatorStore, T: SlotClock + 'static>(
+    duties_service: &DutiesService<S, T>,
     block_service_tx: &mut Sender<BlockServiceNotification>,
 ) -> Result<(), Error<S::Error>> {
     let _timer = validator_metrics::start_timer_vec(
@@ -1298,7 +1290,7 @@ async fn poll_beacon_proposers<S: ValidatorStore, T: SlotClock + 'static, E: Eth
         .slot_clock
         .now()
         .ok_or(Error::UnableToReadSlotClock)?;
-    let current_epoch = current_slot.epoch(E::slots_per_epoch());
+    let current_epoch = current_slot.epoch(S::E::slots_per_epoch());
 
     // Notify the block proposal service for any proposals that we have in our cache.
     //
