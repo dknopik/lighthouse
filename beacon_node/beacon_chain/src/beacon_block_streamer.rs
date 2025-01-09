@@ -690,9 +690,9 @@ impl<T: BeaconChainTypes> BeaconBlockStreamer<T> {
 async fn send_errors<E: EthSpec>(
     block_roots: Vec<Hash256>,
     sender: UnboundedSender<(Hash256, Arc<BlockResult<E>>)>,
-    beacon_chain_error: BeaconChainError,
+    unhandled_error: BeaconChainError,
 ) {
-    let result = Arc::new(Err(beacon_chain_error));
+    let result = Arc::new(Err(unhandled_error));
     for root in block_roots {
         if sender.send((root, result.clone())).is_err() {
             break;

@@ -5,6 +5,7 @@ edition = { workspace = true }
 authors = ["Sigma Prime <contact@sigmaprime.io>"]
 
 [dependencies]
+health_metrics = { workspace = true }
 lighthouse_validator_store = { workspace = true }
 lighthouse_version = { workspace = true }
 malloc_utils = { workspace = true }
@@ -16,5 +17,6 @@ slot_clock = { workspace = true }
 types = { workspace = true }
 validator_metrics = { workspace = true }
 validator_services = { workspace = true }
+validator_store = { workspace = true }
 warp = { workspace = true }
 warp_utils = { workspace = true }
