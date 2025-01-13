@@ -93,12 +93,12 @@ where
     }
 
     /// Returns a reference to the underlying BLS point.
-    pub(crate) fn point(&self) -> Option<&Sig> {
+    pub fn point(&self) -> Option<&Sig> {
         self.point.as_ref()
     }
 
     /// Instantiates `Self` from a `point`.
-    pub(crate) fn from_point(point: Sig, is_infinity: bool) -> Self {
+    pub fn from_point(point: Sig, is_infinity: bool) -> Self {
         Self {
             point: Some(point),
             is_infinity,
