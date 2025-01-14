@@ -9,6 +9,7 @@ mod sync_committee_rewards;
 pub mod sync_state;
 
 use crate::{
+    lighthouse::sync_state::SyncState,
     types::{DepositTreeSnapshot, Epoch, FinalizedExecutionBlock, GenericResponse, ValidatorId},
     BeaconNodeHttpClient, DepositData, Error, Eth1Data, Hash256, Slot,
 };
@@ -83,7 +84,6 @@ pub struct ValidatorInclusionData {
     pub is_previous_epoch_head_attester: bool,
 }
 
-use crate::lighthouse::sync_state::SyncState;
 #[cfg(target_os = "linux")]
 use {
     psutil::cpu::os::linux::CpuTimesExt, psutil::memory::os::linux::VirtualMemoryExt,
