@@ -327,7 +327,6 @@ impl BeaconNodeHttpClient {
     }
 
     /// Perform a HTTP POST request, returning a JSON response.
-    #[cfg(feature = "lighthouse")]
     async fn post_with_response<T: Serialize, U: IntoUrl, R: DeserializeOwned>(
         &self,
         url: U,
@@ -1587,33 +1586,34 @@ impl BeaconNodeHttpClient {
     /// `POST beacon/rewards/sync_committee`
     pub async fn post_beacon_rewards_sync_committee(
         &self,
-        rewards: &[Option<Vec<lighthouse::SyncCommitteeReward>>],
-    ) -> Result<(), Error> {
+        block_id: BlockId,
+        validators: &[ValidatorId],
+    ) -> Result<GenericResponse<Vec<SyncCommitteeReward>>, Error> {
         let mut path = self.eth_path(V1)?;
 
         path.path_segments_mut()
             .map_err(|()| Error::InvalidUrl(self.server.clone()))?
             .push("beacon")
             .push("rewards")
-            .push("sync_committee");
+            .push("sync_committee")
+            .push(&block_id.to_string());
 
-        self.post(path, &rewards).await?;
-
-        Ok(())
+        self.post_with_response(path, &validators).await
     }
 
     /// `GET beacon/rewards/blocks`
-    pub async fn get_beacon_rewards_blocks(&self, epoch: Epoch) -> Result<(), Error> {
+    pub async fn get_beacon_rewards_blocks(
+        &self,
+        block_id: BlockId,
+    ) -> Result<GenericResponse<StandardBlockReward>, Error> {
         let mut path = self.eth_path(V1)?;
 
         path.path_segments_mut()
             .map_err(|()| Error::InvalidUrl(self.server.clone()))?
             .push("beacon")
             .push("rewards")
-            .push("blocks");
-
-        path.query_pairs_mut()
-            .append_pair("epoch", &epoch.to_string());
+            .push("blocks")
+            .push(&block_id.to_string());
 
         self.get(path).await
     }
@@ -1621,19 +1621,19 @@ impl BeaconNodeHttpClient {
     /// `POST beacon/rewards/attestations`
     pub async fn post_beacon_rewards_attestations(
         &self,
-        attestations: &[ValidatorId],
-    ) -> Result<(), Error> {
+        epoch: Epoch,
+        validators: &[ValidatorId],
+    ) -> Result<StandardAttestationRewards, Error> {
         let mut path = self.eth_path(V1)?;
 
         path.path_segments_mut()
             .map_err(|()| Error::InvalidUrl(self.server.clone()))?
             .push("beacon")
             .push("rewards")
-            .push("attestations");
+            .push("attestations")
+            .push(&epoch.to_string());
 
-        self.post(path, &attestations).await?;
-
-        Ok(())
+        self.post_with_response(path, &validators).await
     }
 
     // GET builder/states/{state_id}/expected_withdrawals

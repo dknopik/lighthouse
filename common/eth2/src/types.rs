@@ -11,6 +11,7 @@ use multiaddr::Multiaddr;
 use reqwest::header::HeaderMap;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
+use serde_utils::quoted_u64::Quoted;
 use ssz::{Decode, DecodeError};
 use ssz_derive::{Decode, Encode};
 use std::fmt::{self, Display};
@@ -1980,6 +1981,90 @@ pub struct BlobsBundle<E: EthSpec> {
     pub proofs: KzgProofs<E>,
     #[serde(with = "ssz_types::serde_utils::list_of_hex_fixed_vec")]
     pub blobs: BlobsList<E>,
+}
+
+/// Details about the rewards paid to sync committee members for attesting headers
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub struct SyncCommitteeReward {
+    #[serde(with = "serde_utils::quoted_u64")]
+    pub validator_index: u64,
+    /// sync committee reward in gwei for the validator
+    #[serde(with = "serde_utils::quoted_i64")]
+    pub reward: i64,
+}
+
+/// Details about the rewards for a single block
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub struct StandardBlockReward {
+    /// proposer of the block, the proposer index who receives these rewards
+    #[serde(with = "serde_utils::quoted_u64")]
+    pub proposer_index: u64,
+    /// total block reward in gwei,
+    /// equal to attestations + sync_aggregate + proposer_slashings + attester_slashings
+    #[serde(with = "serde_utils::quoted_u64")]
+    pub total: u64,
+    /// block reward component due to included attestations in gwei
+    #[serde(with = "serde_utils::quoted_u64")]
+    pub attestations: u64,
+    /// block reward component due to included sync_aggregate in gwei
+    #[serde(with = "serde_utils::quoted_u64")]
+    pub sync_aggregate: u64,
+    /// block reward component due to included proposer_slashings in gwei
+    #[serde(with = "serde_utils::quoted_u64")]
+    pub proposer_slashings: u64,
+    /// block reward component due to included attester_slashings in gwei
+    #[serde(with = "serde_utils::quoted_u64")]
+    pub attester_slashings: u64,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct IdealAttestationRewards {
+    /// Validator's effective balance in gwei
+    #[serde(with = "serde_utils::quoted_u64")]
+    pub effective_balance: u64,
+    /// Ideal attester's reward for head vote in gwei
+    #[serde(with = "serde_utils::quoted_u64")]
+    pub head: u64,
+    /// Ideal attester's reward for target vote in gwei
+    #[serde(with = "serde_utils::quoted_u64")]
+    pub target: u64,
+    /// Ideal attester's reward for source vote in gwei
+    #[serde(with = "serde_utils::quoted_u64")]
+    pub source: u64,
+    /// Ideal attester's inclusion_delay reward in gwei (phase0 only)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inclusion_delay: Option<Quoted<u64>>,
+    /// Ideal attester's inactivity penalty in gwei
+    #[serde(with = "serde_utils::quoted_i64")]
+    pub inactivity: i64,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct TotalAttestationRewards {
+    /// one entry for every validator based on their attestations in the epoch
+    #[serde(with = "serde_utils::quoted_u64")]
+    pub validator_index: u64,
+    /// attester's reward for head vote in gwei
+    #[serde(with = "serde_utils::quoted_i64")]
+    pub head: i64,
+    /// attester's reward for target vote in gwei
+    #[serde(with = "serde_utils::quoted_i64")]
+    pub target: i64,
+    /// attester's reward for source vote in gwei
+    #[serde(with = "serde_utils::quoted_i64")]
+    pub source: i64,
+    /// attester's inclusion_delay reward in gwei (phase0 only)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inclusion_delay: Option<Quoted<u64>>,
+    /// attester's inactivity penalty in gwei
+    #[serde(with = "serde_utils::quoted_i64")]
+    pub inactivity: i64,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct StandardAttestationRewards {
+    pub ideal_rewards: Vec<IdealAttestationRewards>,
+    pub total_rewards: Vec<TotalAttestationRewards>,
 }
 
 #[cfg(test)]
