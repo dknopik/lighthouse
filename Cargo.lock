@@ -2584,7 +2584,6 @@ dependencies = [
  "serde_json",
  "slashing_protection",
  "ssz_types",
- "store",
  "tokio",
  "types",
  "zeroize",

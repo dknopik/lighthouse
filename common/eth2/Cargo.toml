@@ -3,7 +3,6 @@ name = "eth2"
 version = "0.1.0"
 authors = ["Paul Hauner <paul@paulhauner.com>"]
 edition = { workspace = true }
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 derivative = { workspace = true }
@@ -26,7 +25,6 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 slashing_protection = { workspace = true }
 ssz_types = { workspace = true }
-store = { workspace = true }
 types = { workspace = true }
 zeroize = { workspace = true }
 
