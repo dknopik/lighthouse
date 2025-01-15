@@ -8,6 +8,7 @@ use crate::{
     generic_signature::{TSignature, SIGNATURE_BYTES_LEN},
     Error, Hash256, ZeroizeHash, INFINITY_PUBLIC_KEY, INFINITY_SIGNATURE,
 };
+use crate::generic_signature::SIGNATURE_UNCOMPRESSED_BYTES_LEN;
 
 /// Provides the externally-facing, core BLS types.
 pub mod types {
@@ -104,6 +105,12 @@ impl Signature {
 impl TSignature<PublicKey> for Signature {
     fn serialize(&self) -> [u8; SIGNATURE_BYTES_LEN] {
         self.0
+    }
+
+    fn serialize_uncompressed(&self) -> [u8; SIGNATURE_UNCOMPRESSED_BYTES_LEN] {
+        let mut ret = [0; SIGNATURE_UNCOMPRESSED_BYTES_LEN];
+        ret[0..SIGNATURE_BYTES_LEN].copy_from_slice(&self.0);
+        ret
     }
 
     fn deserialize(bytes: &[u8]) -> Result<Self, Error> {

@@ -11,6 +11,7 @@ use crate::{
 pub use blst::min_pk as blst_core;
 use blst::{blst_scalar, BLST_ERROR};
 use rand::Rng;
+use crate::generic_signature::SIGNATURE_UNCOMPRESSED_BYTES_LEN;
 
 pub const DST: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
 pub const RAND_BITS: usize = 64;
@@ -187,6 +188,10 @@ impl TAggregatePublicKey<blst_core::PublicKey> for BlstAggregatePublicKey {
 impl TSignature<blst_core::PublicKey> for blst_core::Signature {
     fn serialize(&self) -> [u8; SIGNATURE_BYTES_LEN] {
         self.to_bytes()
+    }
+
+    fn serialize_uncompressed(&self) -> [u8; SIGNATURE_UNCOMPRESSED_BYTES_LEN] {
+        self.serialize()
     }
 
     fn deserialize(bytes: &[u8]) -> Result<Self, Error> {

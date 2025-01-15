@@ -14,6 +14,9 @@ use tree_hash::TreeHash;
 /// The byte-length of a BLS signature when serialized in compressed form.
 pub const SIGNATURE_BYTES_LEN: usize = 96;
 
+/// The byte-length of a BLS signature when serialized in uncompressed form.
+pub const SIGNATURE_UNCOMPRESSED_BYTES_LEN: usize = 192;
+
 /// Represents the signature at infinity.
 pub const INFINITY_SIGNATURE: [u8; SIGNATURE_BYTES_LEN] = [
     0xc0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -30,6 +33,9 @@ pub const NONE_SIGNATURE: [u8; SIGNATURE_BYTES_LEN] = [0; SIGNATURE_BYTES_LEN];
 pub trait TSignature<GenericPublicKey>: Sized + Clone {
     /// Serialize `self` as compressed bytes.
     fn serialize(&self) -> [u8; SIGNATURE_BYTES_LEN];
+
+    /// Serialize `self` as uncompressed bytes.
+    fn serialize_uncompressed(&self) -> [u8; SIGNATURE_UNCOMPRESSED_BYTES_LEN];
 
     /// Deserialize `self` from compressed bytes.
     fn deserialize(bytes: &[u8]) -> Result<Self, Error>;
@@ -113,6 +119,11 @@ where
         } else {
             NONE_SIGNATURE
         }
+    }
+
+    /// Serialize `self` as compressed bytes.
+    pub fn serialize_uncompressed(&self) -> Option<[u8; SIGNATURE_UNCOMPRESSED_BYTES_LEN]> {
+        self.point.as_ref().map(|point| point.serialize_uncompressed())
     }
 
     /// Deserialize `self` from compressed bytes.
