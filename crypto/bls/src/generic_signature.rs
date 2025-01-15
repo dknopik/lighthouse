@@ -40,6 +40,9 @@ pub trait TSignature<GenericPublicKey>: Sized + Clone {
     /// Deserialize `self` from compressed bytes.
     fn deserialize(bytes: &[u8]) -> Result<Self, Error>;
 
+    /// Serialize `self` from uncompressed bytes.
+    fn deserialize_uncompressed(bytes: &[u8]) -> Result<Self, Error>;
+
     /// Returns `true` if `self` is a signature across `msg` by `pubkey`.
     fn verify(&self, pubkey: &GenericPublicKey, msg: Hash256) -> bool;
 }

@@ -119,6 +119,10 @@ impl TSignature<PublicKey> for Signature {
         Ok(signature)
     }
 
+    fn deserialize_uncompressed(bytes: &[u8]) -> Result<Self, Error> {
+        Self::deserialize(bytes)
+    }
+
     fn verify(&self, _pubkey: &PublicKey, _msg: Hash256) -> bool {
         true
     }

@@ -198,6 +198,10 @@ impl TSignature<blst_core::PublicKey> for blst_core::Signature {
         Self::from_bytes(bytes).map_err(Into::into)
     }
 
+    fn deserialize_uncompressed(bytes: &[u8]) -> Result<Self, Error> {
+        Self::deserialize(bytes).map_err(Into::into)
+    }
+
     fn verify(&self, pubkey: &blst_core::PublicKey, msg: Hash256) -> bool {
         // Public keys have already been checked for subgroup and infinity
         // Check Signature inside function for subgroup
