@@ -143,6 +143,15 @@ where
             _phantom: PhantomData,
         })
     }
+
+    /// Deserialize `self` from uncompressed bytes.
+    pub fn deserialize_uncompressed(bytes: &[u8]) -> Result<Self, Error> {
+        Ok(Self {
+            point: Some(Sig::deserialize_uncompressed(bytes)?),
+            is_infinity: false, // todo
+            _phantom: PhantomData,
+        })
+    }
 }
 
 impl<Pub, Sig> GenericSignature<Pub, Sig>
