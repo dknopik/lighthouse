@@ -1,5 +1,5 @@
-use serde::Serialize;
 use lighthouse_network::PeerInfo;
+use serde::Serialize;
 use types::EthSpec;
 
 /// Information returned by `peers` and `connected_peers`.
