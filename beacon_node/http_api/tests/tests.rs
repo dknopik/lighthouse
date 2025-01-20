@@ -35,7 +35,6 @@ use state_processing::per_slot_processing;
 use state_processing::state_advance::partial_state_advance;
 use std::convert::TryInto;
 use std::sync::Arc;
-use store::{AnchorInfo, Split};
 use tokio::time::Duration;
 use tree_hash::TreeHash;
 use types::application_domain::ApplicationDomain;
