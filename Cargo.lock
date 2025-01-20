@@ -9815,7 +9815,6 @@ dependencies = [
  "bytes",
  "eth2",
  "headers",
- "metrics",
  "safe_arith",
  "serde",
  "serde_array_query",

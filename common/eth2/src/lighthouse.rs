@@ -28,15 +28,6 @@ pub use block_rewards::{AttestationRewards, BlockReward, BlockRewardMeta, BlockR
 four_byte_option_impl!(four_byte_option_u64, u64);
 four_byte_option_impl!(four_byte_option_hash256, Hash256);
 
-/// Information returned by `peers` and `connected_peers`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Peer {
-    /// The Peer's ID
-    pub peer_id: String,
-    /// The PeerInfo associated with the peer.
-    pub peer_info: serde_json::Value,
-}
-
 /// The results of validators voting during an epoch.
 ///
 /// Provides information about the current and previous epochs.
@@ -359,19 +350,6 @@ impl BeaconNodeHttpClient {
             .push("staking");
 
         self.get_opt::<(), _>(path).await.map(|opt| opt.is_some())
-    }
-
-    /// `GET lighthouse/database/info`
-    pub async fn get_lighthouse_database_info(&self) -> Result<serde_json::Value, Error> {
-        let mut path = self.server.full.clone();
-
-        path.path_segments_mut()
-            .map_err(|()| Error::InvalidUrl(self.server.clone()))?
-            .push("lighthouse")
-            .push("database")
-            .push("info");
-
-        self.get(path).await
     }
 
     /// `POST lighthouse/database/reconstruct`

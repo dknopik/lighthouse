@@ -518,7 +518,7 @@ impl<E: EthSpec> PeerInfo<E> {
 }
 
 /// Connection Direction of connection.
-#[derive(Debug, Clone, Serialize, AsRefStr)]
+#[derive(Debug, Clone, Copy, Serialize, AsRefStr)]
 #[strum(serialize_all = "snake_case")]
 pub enum ConnectionDirection {
     /// The connection was established by a peer dialing us.

@@ -15,6 +15,7 @@ mod builder_states;
 mod database;
 mod light_client;
 mod metrics;
+mod peer;
 mod produce_block;
 mod proposer_duties;
 mod publish_attestations;
@@ -3092,15 +3093,13 @@ pub fn serve<T: BeaconChainTypes>(
                         };
 
                         // the eth2 API spec implies only peers we have been connected to at some point should be included.
-                        if let Some(dir) = peer_info.connection_direction().as_ref() {
+                        if let Some(&dir) = peer_info.connection_direction() {
                             return Ok(api_types::GenericResponse::from(api_types::PeerData {
                                 peer_id: peer_id.to_string(),
                                 enr: peer_info.enr().map(|enr| enr.to_base64()),
                                 last_seen_p2p_address: address,
-                                direction: api_types::PeerDirection::from((*dir).clone()),
-                                state: api_types::PeerState::from(
-                                    peer_info.connection_status().clone(),
-                                ),
+                                direction: dir.into(),
+                                state: peer_info.connection_status().clone().into(),
                             }));
                         }
                     }
@@ -3141,11 +3140,9 @@ pub fn serve<T: BeaconChainTypes>(
                                 };
 
                             // the eth2 API spec implies only peers we have been connected to at some point should be included.
-                            if let Some(dir) = peer_info.connection_direction() {
-                                let direction = api_types::PeerDirection::from((*dir).clone());
-                                let state = api_types::PeerState::from(
-                                    peer_info.connection_status().clone(),
-                                );
+                            if let Some(&dir) = peer_info.connection_direction() {
+                                let direction = dir.into();
+                                let state = peer_info.connection_status().clone().into();
 
                                 let state_matches = query.state.as_ref().map_or(true, |states| {
                                     states.iter().any(|state_param| *state_param == state)
@@ -4205,18 +4202,15 @@ pub fn serve<T: BeaconChainTypes>(
             |task_spawner: TaskSpawner<T::EthSpec>,
              network_globals: Arc<NetworkGlobals<T::EthSpec>>| {
                 task_spawner.blocking_json_task(Priority::P1, move || {
-                    let mut peers = vec![];
-                    for (peer_id, peer_info) in network_globals.peers.read().peers() {
-                        peers.push(eth2::lighthouse::Peer {
+                    Ok(network_globals
+                        .peers
+                        .read()
+                        .peers()
+                        .map(|(peer_id, peer_info)| peer::Peer {
                             peer_id: peer_id.to_string(),
-                            peer_info: serde_json::to_value(peer_info).map_err(|e| {
-                                warp_utils::reject::custom_not_found(format!(
-                                    "unable to serialize peer_info: {e:?}",
-                                ))
-                            })?,
-                        });
-                    }
-                    Ok(peers)
+                            peer_info: peer_info.clone(),
+                        })
+                        .collect::<Vec<_>>())
                 })
             },
         );
@@ -4234,13 +4228,9 @@ pub fn serve<T: BeaconChainTypes>(
                 task_spawner.blocking_json_task(Priority::P1, move || {
                     let mut peers = vec![];
                     for (peer_id, peer_info) in network_globals.peers.read().connected_peers() {
-                        peers.push(eth2::lighthouse::Peer {
+                        peers.push(peer::Peer {
                             peer_id: peer_id.to_string(),
-                            peer_info: serde_json::to_value(peer_info).map_err(|e| {
-                                warp_utils::reject::custom_not_found(format!(
-                                    "unable to serialize peer_info: {e:?}",
-                                ))
-                            })?,
+                            peer_info: peer_info.clone(),
                         });
                     }
                     Ok(peers)
