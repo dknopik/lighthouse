@@ -457,12 +457,11 @@ impl<S: ValidatorStore + 'static, T: SlotClock + 'static> AttestationService<S, 
                                     // This shouldn't happen unless BN and VC are out of sync with
                                     // respect to the Electra fork.
                                     error!(
-                                        log,
-                                        "Unable to convert to SingleAttestation";
-                                        "error" => ?e,
-                                        "committee_index" => attestation_data.index,
-                                        "slot" => slot.as_u64(),
-                                        "type" => "unaggregated",
+                                        error = ?e,
+                                        committee_index = attestation_data.index,
+                                        slot = slot.as_u64(),
+                                        "type" = "unaggregated",
+                                        "Unable to convert to SingleAttestation",
                                     );
                                     None
                                 }

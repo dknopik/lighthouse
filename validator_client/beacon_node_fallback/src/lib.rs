@@ -351,12 +351,11 @@ impl CandidateBeaconNode {
             );
         } else if beacon_node_spec.fulu_fork_epoch != spec.fulu_fork_epoch {
             warn!(
-            log,
-                    "Beacon node has mismatched Fulu fork epoch";
-                    "endpoint" => %self.beacon_node,
-                    "endpoint_fulu_fork_epoch" => ?beacon_node_spec.fulu_fork_epoch,
-                    "hint" => UPDATE_REQUIRED_LOG_HINT,
-                );
+                endpoint = %self.beacon_node,
+                endpoint_fulu_fork_epoc = ?beacon_node_spec.fulu_fork_epoch,
+                hint = UPDATE_REQUIRED_LOG_HINT,
+                "Beacon node has mismatched Fulu fork epoch"
+            );
         }
 
         Ok(())
