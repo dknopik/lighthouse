@@ -91,8 +91,10 @@ pub fn cli_run(matches: &ArgMatches, validator_dir: PathBuf) -> Result<(), Strin
 
     eprintln!("secrets-dir path: {:?}", secrets_dir);
 
-    create_dir_all(&validator_dir).map_err(|_| "Could not create validator dir")?;
-    create_dir_all(&secrets_dir).map_err(|_| "Could not create secrets dir")?;
+    create_dir_all(&validator_dir)
+        .map_err(|e| format!("Could not create validator dir at {validator_dir:?}: {e:?}"))?;
+    create_dir_all(&secrets_dir)
+        .map_err(|e| format!("Could not create secrets dir at {secrets_dir:?}: {e:?}"))?;
 
     eprintln!();
     eprintln!("WARNING: KEY RECOVERY CAN LEAD TO DUPLICATING VALIDATORS KEYS, WHICH CAN LEAD TO SLASHING.");

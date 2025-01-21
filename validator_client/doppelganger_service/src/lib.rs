@@ -94,7 +94,7 @@ impl DoppelgangerState {
 /// If the BN fails to respond to either of these requests, simply return an empty response.
 /// This behaviour is to help prevent spurious failures on the BN from needlessly preventing
 /// doppelganger progression.
-async fn beacon_node_liveness<'a, T: 'static + SlotClock>(
+async fn beacon_node_liveness<T: 'static + SlotClock>(
     beacon_nodes: Arc<BeaconNodeFallback<T>>,
     log: Logger,
     current_epoch: Epoch,

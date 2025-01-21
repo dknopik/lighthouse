@@ -247,7 +247,7 @@ impl<S: ValidatorStore + 'static, T: SlotClock + 'static> PreparationService<S, 
         let current_epoch = self.slot_clock.now().map_or(S::E::genesis_epoch(), |slot| {
             slot.epoch(S::E::slots_per_epoch())
         });
-        spec.bellatrix_fork_epoch.map_or(false, |fork_epoch| {
+        spec.bellatrix_fork_epoch.is_some_and(|fork_epoch| {
             current_epoch + PROPOSER_PREPARATION_LOOKAHEAD_EPOCHS >= fork_epoch
         })
     }

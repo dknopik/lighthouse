@@ -84,6 +84,7 @@ pub trait AbstractExecPayload<E: EthSpec>:
     + TryInto<Self::Capella>
     + TryInto<Self::Deneb>
     + TryInto<Self::Electra>
+    + TryInto<Self::Fulu>
     + Sync
 {
     type Ref<'a>: ExecPayload<E>
@@ -91,7 +92,8 @@ pub trait AbstractExecPayload<E: EthSpec>:
         + From<&'a Self::Bellatrix>
         + From<&'a Self::Capella>
         + From<&'a Self::Deneb>
-        + From<&'a Self::Electra>;
+        + From<&'a Self::Electra>
+        + From<&'a Self::Fulu>;
 
     type Bellatrix: OwnedExecPayload<E>
         + Into<Self>
@@ -113,10 +115,15 @@ pub trait AbstractExecPayload<E: EthSpec>:
         + for<'a> From<Cow<'a, ExecutionPayloadElectra<E>>>
         + TryFrom<ExecutionPayloadHeaderElectra<E>>
         + Sync;
+    type Fulu: OwnedExecPayload<E>
+        + Into<Self>
+        + for<'a> From<Cow<'a, ExecutionPayloadFulu<E>>>
+        + TryFrom<ExecutionPayloadHeaderFulu<E>>
+        + Sync;
 }
 
 #[superstruct(
-    variants(Bellatrix, Capella, Deneb, Electra),
+    variants(Bellatrix, Capella, Deneb, Electra, Fulu),
     variant_attributes(
         derive(
             Debug,
@@ -162,6 +169,8 @@ pub struct FullPayload<E: EthSpec> {
     pub execution_payload: ExecutionPayloadDeneb<E>,
     #[superstruct(only(Electra), partial_getter(rename = "execution_payload_electra"))]
     pub execution_payload: ExecutionPayloadElectra<E>,
+    #[superstruct(only(Fulu), partial_getter(rename = "execution_payload_fulu"))]
+    pub execution_payload: ExecutionPayloadFulu<E>,
 }
 
 impl<E: EthSpec> From<FullPayload<E>> for ExecutionPayload<E> {
@@ -278,6 +287,9 @@ impl<E: EthSpec> ExecPayload<E> for FullPayload<E> {
             FullPayload::Electra(ref inner) => {
                 Ok(inner.execution_payload.withdrawals.tree_hash_root())
             }
+            FullPayload::Fulu(ref inner) => {
+                Ok(inner.execution_payload.withdrawals.tree_hash_root())
+            }
         }
     }
 
@@ -288,6 +300,7 @@ impl<E: EthSpec> ExecPayload<E> for FullPayload<E> {
             }
             FullPayload::Deneb(ref inner) => Ok(inner.execution_payload.blob_gas_used),
             FullPayload::Electra(ref inner) => Ok(inner.execution_payload.blob_gas_used),
+            FullPayload::Fulu(ref inner) => Ok(inner.execution_payload.blob_gas_used),
         }
     }
 
@@ -318,6 +331,7 @@ impl<E: EthSpec> FullPayload<E> {
             ForkName::Capella => Ok(FullPayloadCapella::default().into()),
             ForkName::Deneb => Ok(FullPayloadDeneb::default().into()),
             ForkName::Electra => Ok(FullPayloadElectra::default().into()),
+            ForkName::Fulu => Ok(FullPayloadFulu::default().into()),
         }
     }
 }
@@ -417,6 +431,7 @@ impl<E: EthSpec> ExecPayload<E> for FullPayloadRef<'_, E> {
             FullPayloadRef::Electra(inner) => {
                 Ok(inner.execution_payload.withdrawals.tree_hash_root())
             }
+            FullPayloadRef::Fulu(inner) => Ok(inner.execution_payload.withdrawals.tree_hash_root()),
         }
     }
 
@@ -427,6 +442,7 @@ impl<E: EthSpec> ExecPayload<E> for FullPayloadRef<'_, E> {
             }
             FullPayloadRef::Deneb(inner) => Ok(inner.execution_payload.blob_gas_used),
             FullPayloadRef::Electra(inner) => Ok(inner.execution_payload.blob_gas_used),
+            FullPayloadRef::Fulu(inner) => Ok(inner.execution_payload.blob_gas_used),
         }
     }
 
@@ -449,6 +465,7 @@ impl<E: EthSpec> AbstractExecPayload<E> for FullPayload<E> {
     type Capella = FullPayloadCapella<E>;
     type Deneb = FullPayloadDeneb<E>;
     type Electra = FullPayloadElectra<E>;
+    type Fulu = FullPayloadFulu<E>;
 }
 
 impl<E: EthSpec> From<ExecutionPayload<E>> for FullPayload<E> {
@@ -467,7 +484,7 @@ impl<E: EthSpec> TryFrom<ExecutionPayloadHeader<E>> for FullPayload<E> {
 }
 
 #[superstruct(
-    variants(Bellatrix, Capella, Deneb, Electra),
+    variants(Bellatrix, Capella, Deneb, Electra, Fulu),
     variant_attributes(
         derive(
             Debug,
@@ -512,6 +529,8 @@ pub struct BlindedPayload<E: EthSpec> {
     pub execution_payload_header: ExecutionPayloadHeaderDeneb<E>,
     #[superstruct(only(Electra), partial_getter(rename = "execution_payload_electra"))]
     pub execution_payload_header: ExecutionPayloadHeaderElectra<E>,
+    #[superstruct(only(Fulu), partial_getter(rename = "execution_payload_fulu"))]
+    pub execution_payload_header: ExecutionPayloadHeaderFulu<E>,
 }
 
 impl<'a, E: EthSpec> From<BlindedPayloadRef<'a, E>> for BlindedPayload<E> {
@@ -604,6 +623,7 @@ impl<E: EthSpec> ExecPayload<E> for BlindedPayload<E> {
             BlindedPayload::Electra(ref inner) => {
                 Ok(inner.execution_payload_header.withdrawals_root)
             }
+            BlindedPayload::Fulu(ref inner) => Ok(inner.execution_payload_header.withdrawals_root),
         }
     }
 
@@ -614,6 +634,7 @@ impl<E: EthSpec> ExecPayload<E> for BlindedPayload<E> {
             }
             BlindedPayload::Deneb(ref inner) => Ok(inner.execution_payload_header.blob_gas_used),
             BlindedPayload::Electra(ref inner) => Ok(inner.execution_payload_header.blob_gas_used),
+            BlindedPayload::Fulu(ref inner) => Ok(inner.execution_payload_header.blob_gas_used),
         }
     }
 
@@ -712,6 +733,7 @@ impl<'b, E: EthSpec> ExecPayload<E> for BlindedPayloadRef<'b, E> {
             BlindedPayloadRef::Electra(inner) => {
                 Ok(inner.execution_payload_header.withdrawals_root)
             }
+            BlindedPayloadRef::Fulu(inner) => Ok(inner.execution_payload_header.withdrawals_root),
         }
     }
 
@@ -722,6 +744,7 @@ impl<'b, E: EthSpec> ExecPayload<E> for BlindedPayloadRef<'b, E> {
             }
             BlindedPayloadRef::Deneb(inner) => Ok(inner.execution_payload_header.blob_gas_used),
             BlindedPayloadRef::Electra(inner) => Ok(inner.execution_payload_header.blob_gas_used),
+            BlindedPayloadRef::Fulu(inner) => Ok(inner.execution_payload_header.blob_gas_used),
         }
     }
 
@@ -1025,6 +1048,13 @@ impl_exec_payload_for_fork!(
     ExecutionPayloadElectra,
     Electra
 );
+impl_exec_payload_for_fork!(
+    BlindedPayloadFulu,
+    FullPayloadFulu,
+    ExecutionPayloadHeaderFulu,
+    ExecutionPayloadFulu,
+    Fulu
+);
 
 impl<E: EthSpec> AbstractExecPayload<E> for BlindedPayload<E> {
     type Ref<'a> = BlindedPayloadRef<'a, E>;
@@ -1032,6 +1062,7 @@ impl<E: EthSpec> AbstractExecPayload<E> for BlindedPayload<E> {
     type Capella = BlindedPayloadCapella<E>;
     type Deneb = BlindedPayloadDeneb<E>;
     type Electra = BlindedPayloadElectra<E>;
+    type Fulu = BlindedPayloadFulu<E>;
 }
 
 impl<E: EthSpec> From<ExecutionPayload<E>> for BlindedPayload<E> {
@@ -1068,6 +1099,11 @@ impl<E: EthSpec> From<ExecutionPayloadHeader<E>> for BlindedPayload<E> {
                     execution_payload_header,
                 })
             }
+            ExecutionPayloadHeader::Fulu(execution_payload_header) => {
+                Self::Fulu(BlindedPayloadFulu {
+                    execution_payload_header,
+                })
+            }
         }
     }
 }
@@ -1086,6 +1122,9 @@ impl<E: EthSpec> From<BlindedPayload<E>> for ExecutionPayloadHeader<E> {
             }
             BlindedPayload::Electra(blinded_payload) => {
                 ExecutionPayloadHeader::Electra(blinded_payload.execution_payload_header)
+            }
+            BlindedPayload::Fulu(blinded_payload) => {
+                ExecutionPayloadHeader::Fulu(blinded_payload.execution_payload_header)
             }
         }
     }

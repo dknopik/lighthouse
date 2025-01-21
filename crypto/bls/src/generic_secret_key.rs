@@ -61,6 +61,20 @@ where
         GenericPublicKey::from_point(self.point.public_key())
     }
 
+    /// Returns a reference to the underlying BLS point.
+    pub fn point(&self) -> &Sec {
+        &self.point
+    }
+
+    /// Instantiates `Self` from a `point`.
+    pub fn from_point(point: Sec) -> Self {
+        Self {
+            point,
+            _phantom_signature: PhantomData,
+            _phantom_public_key: PhantomData,
+        }
+    }
+
     /// Serialize `self` as compressed bytes.
     ///
     /// ## Note

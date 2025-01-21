@@ -1057,6 +1057,9 @@ impl ForkVersionDeserialize for SsePayloadAttributes {
             ForkName::Electra => serde_json::from_value(value)
                 .map(Self::V3)
                 .map_err(serde::de::Error::custom),
+            ForkName::Fulu => serde_json::from_value(value)
+                .map(Self::V3)
+                .map_err(serde::de::Error::custom),
             ForkName::Base | ForkName::Altair => Err(serde::de::Error::custom(format!(
                 "SsePayloadAttributes deserialization for {fork_name} not implemented"
             ))),
@@ -1089,6 +1092,7 @@ impl ForkVersionDeserialize for SseExtendedPayloadAttributes {
 #[serde(bound = "E: EthSpec", untagged)]
 pub enum EventKind<E: EthSpec> {
     Attestation(Box<Attestation<E>>),
+    SingleAttestation(Box<SingleAttestation>),
     Block(SseBlock),
     BlobSidecar(SseBlobSidecar),
     FinalizedCheckpoint(SseFinalizedCheckpoint),
@@ -1115,6 +1119,7 @@ impl<E: EthSpec> EventKind<E> {
             EventKind::Block(_) => "block",
             EventKind::BlobSidecar(_) => "blob_sidecar",
             EventKind::Attestation(_) => "attestation",
+            EventKind::SingleAttestation(_) => "single_attestation",
             EventKind::VoluntaryExit(_) => "voluntary_exit",
             EventKind::FinalizedCheckpoint(_) => "finalized_checkpoint",
             EventKind::ChainReorg(_) => "chain_reorg",
@@ -1137,6 +1142,11 @@ impl<E: EthSpec> EventKind<E> {
             "attestation" => Ok(EventKind::Attestation(serde_json::from_str(data).map_err(
                 |e| ServerError::InvalidServerSentEvent(format!("Attestation: {:?}", e)),
             )?)),
+            "single_attestation" => Ok(EventKind::SingleAttestation(
+                serde_json::from_str(data).map_err(|e| {
+                    ServerError::InvalidServerSentEvent(format!("SingleAttestation: {:?}", e))
+                })?,
+            )),
             "block" => Ok(EventKind::Block(serde_json::from_str(data).map_err(
                 |e| ServerError::InvalidServerSentEvent(format!("Block: {:?}", e)),
             )?)),
@@ -1231,6 +1241,7 @@ pub enum EventTopic {
     Block,
     BlobSidecar,
     Attestation,
+    SingleAttestation,
     VoluntaryExit,
     FinalizedCheckpoint,
     ChainReorg,
@@ -1256,6 +1267,7 @@ impl FromStr for EventTopic {
             "block" => Ok(EventTopic::Block),
             "blob_sidecar" => Ok(EventTopic::BlobSidecar),
             "attestation" => Ok(EventTopic::Attestation),
+            "single_attestation" => Ok(EventTopic::SingleAttestation),
             "voluntary_exit" => Ok(EventTopic::VoluntaryExit),
             "finalized_checkpoint" => Ok(EventTopic::FinalizedCheckpoint),
             "chain_reorg" => Ok(EventTopic::ChainReorg),
@@ -1282,6 +1294,7 @@ impl fmt::Display for EventTopic {
             EventTopic::Block => write!(f, "block"),
             EventTopic::BlobSidecar => write!(f, "blob_sidecar"),
             EventTopic::Attestation => write!(f, "attestation"),
+            EventTopic::SingleAttestation => write!(f, "single_attestation"),
             EventTopic::VoluntaryExit => write!(f, "voluntary_exit"),
             EventTopic::FinalizedCheckpoint => write!(f, "finalized_checkpoint"),
             EventTopic::ChainReorg => write!(f, "chain_reorg"),
@@ -1840,14 +1853,10 @@ impl<E: EthSpec> PublishBlockRequest<E> {
 impl<E: EthSpec> TryFrom<Arc<SignedBeaconBlock<E>>> for PublishBlockRequest<E> {
     type Error = &'static str;
     fn try_from(block: Arc<SignedBeaconBlock<E>>) -> Result<Self, Self::Error> {
-        match *block {
-            SignedBeaconBlock::Base(_)
-            | SignedBeaconBlock::Altair(_)
-            | SignedBeaconBlock::Bellatrix(_)
-            | SignedBeaconBlock::Capella(_) => Ok(PublishBlockRequest::Block(block)),
-            SignedBeaconBlock::Deneb(_) | SignedBeaconBlock::Electra(_) => Err(
-                "post-Deneb block contents cannot be fully constructed from just the signed block",
-            ),
+        if block.message().fork_name_unchecked().deneb_enabled() {
+            Err("post-Deneb block contents cannot be fully constructed from just the signed block")
+        } else {
+            Ok(PublishBlockRequest::Block(block))
         }
     }
 }
@@ -1951,16 +1960,18 @@ impl<E: EthSpec> ForkVersionDeserialize for FullPayloadContents<E> {
         value: Value,
         fork_name: ForkName,
     ) -> Result<Self, D::Error> {
-        match fork_name {
-            ForkName::Bellatrix | ForkName::Capella => serde_json::from_value(value)
-                .map(Self::Payload)
-                .map_err(serde::de::Error::custom),
-            ForkName::Deneb | ForkName::Electra => serde_json::from_value(value)
+        if fork_name.deneb_enabled() {
+            serde_json::from_value(value)
                 .map(Self::PayloadAndBlobs)
-                .map_err(serde::de::Error::custom),
-            ForkName::Base | ForkName::Altair => Err(serde::de::Error::custom(format!(
+                .map_err(serde::de::Error::custom)
+        } else if fork_name.bellatrix_enabled() {
+            serde_json::from_value(value)
+                .map(Self::Payload)
+                .map_err(serde::de::Error::custom)
+        } else {
+            Err(serde::de::Error::custom(format!(
                 "FullPayloadContents deserialization for {fork_name} not implemented"
-            ))),
+            )))
         }
     }
 }

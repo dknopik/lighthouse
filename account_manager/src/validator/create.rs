@@ -155,8 +155,10 @@ pub fn cli_run<E: EthSpec>(
         ));
     }
 
-    create_dir_all(&validator_dir).map_err(|_| "Could not create validator dir")?;
-    create_dir_all(&secrets_dir).map_err(|_| "Could not create secrets dir")?;
+    create_dir_all(&validator_dir)
+        .map_err(|e| format!("Could not create validator dir at {validator_dir:?}: {e:?}"))?;
+    create_dir_all(&secrets_dir)
+        .map_err(|e| format!("Could not create secrets dir at {secrets_dir:?}: {e:?}"))?;
 
     eprintln!("secrets-dir path {:?}", secrets_dir);
     eprintln!("wallets-dir path {:?}", wallet_base_dir);
