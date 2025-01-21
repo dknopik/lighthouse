@@ -5,13 +5,12 @@ use crate::{
         GenericPublicKey, TPublicKey, PUBLIC_KEY_BYTES_LEN, PUBLIC_KEY_UNCOMPRESSED_BYTES_LEN,
     },
     generic_secret_key::TSecretKey,
-    generic_signature::{TSignature, SIGNATURE_BYTES_LEN},
+    generic_signature::{TSignature, SIGNATURE_BYTES_LEN, SIGNATURE_UNCOMPRESSED_BYTES_LEN},
     BlstError, Error, Hash256, ZeroizeHash, INFINITY_SIGNATURE,
 };
 pub use blst::min_pk as blst_core;
 use blst::{blst_scalar, BLST_ERROR};
 use rand::Rng;
-use crate::generic_signature::SIGNATURE_UNCOMPRESSED_BYTES_LEN;
 
 pub const DST: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
 pub const RAND_BITS: usize = 64;

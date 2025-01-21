@@ -5,10 +5,9 @@ use crate::{
         GenericPublicKey, TPublicKey, PUBLIC_KEY_BYTES_LEN, PUBLIC_KEY_UNCOMPRESSED_BYTES_LEN,
     },
     generic_secret_key::{TSecretKey, SECRET_KEY_BYTES_LEN},
-    generic_signature::{TSignature, SIGNATURE_BYTES_LEN},
+    generic_signature::{TSignature, SIGNATURE_BYTES_LEN, SIGNATURE_UNCOMPRESSED_BYTES_LEN},
     Error, Hash256, ZeroizeHash, INFINITY_PUBLIC_KEY, INFINITY_SIGNATURE,
 };
-use crate::generic_signature::SIGNATURE_UNCOMPRESSED_BYTES_LEN;
 
 /// Provides the externally-facing, core BLS types.
 pub mod types {
