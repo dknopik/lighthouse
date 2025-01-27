@@ -177,6 +177,7 @@ pub trait ValidatorStore: Send + Sync {
     fn proposal_data(&self, pubkey: &PublicKeyBytes) -> Option<ProposalData>;
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub enum UnsignedBlock<E: EthSpec> {
     Full(BeaconBlock<E>),
     Blinded(BlindedBeaconBlock<E>),
@@ -194,6 +195,7 @@ impl<E: EthSpec> From<BlindedBeaconBlock<E>> for UnsignedBlock<E> {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub enum SignedBlock<E: EthSpec> {
     Full(SignedBeaconBlock<E>),
     Blinded(SignedBlindedBeaconBlock<E>),
