@@ -520,8 +520,7 @@ impl ConnectionHandler for Handler {
                         ..
                     }) => match protocol {
                         Either::Left(protocol) => handler.on_fully_negotiated_inbound(protocol),
-                        #[allow(unreachable_patterns)]
-                        Either::Right(v) => void::unreachable(v),
+                        Either::Right(x) => match x {},
                     },
                     ConnectionEvent::FullyNegotiatedOutbound(fully_negotiated_outbound) => {
                         handler.on_fully_negotiated_outbound(fully_negotiated_outbound)

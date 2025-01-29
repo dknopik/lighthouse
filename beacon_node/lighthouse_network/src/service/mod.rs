@@ -1846,7 +1846,7 @@ impl<E: EthSpec> Network<E> {
                     None
                 }
                 #[allow(unreachable_patterns)]
-                BehaviourEvent::ConnectionLimits(le) => void::unreachable(le),
+                BehaviourEvent::ConnectionLimits(x) => match x {},
             },
             SwarmEvent::ConnectionEstablished { .. } => None,
             SwarmEvent::ConnectionClosed { .. } => None,

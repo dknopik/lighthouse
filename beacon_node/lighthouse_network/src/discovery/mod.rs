@@ -44,6 +44,7 @@ use std::{
     task::{Context, Poll},
     time::{Duration, Instant},
 };
+use std::convert::Infallible;
 use tokio::sync::mpsc;
 use types::{ChainSpec, EnrForkId, EthSpec};
 
@@ -994,7 +995,7 @@ impl<E: EthSpec> NetworkBehaviour for Discovery<E> {
         &mut self,
         _peer_id: PeerId,
         _connection_id: ConnectionId,
-        _event: void::Void,
+        _event: Infallible,
     ) {
     }
 
