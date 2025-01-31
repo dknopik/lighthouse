@@ -6,6 +6,7 @@ edition = { workspace = true }
 
 [dependencies]
 derivative = { workspace = true }
+either = { workspace = true }
 enr = { version = "0.13.0", features = ["ed25519"] }
 eth2_keystore = { workspace = true }
 ethereum_serde_utils = { workspace = true }

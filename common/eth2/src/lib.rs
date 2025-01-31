@@ -18,6 +18,7 @@ use self::mixin::{RequestAccept, ResponseOptional};
 use self::types::{Error as ResponseError, *};
 use ::types::fork_versioned_response::ExecutionOptimisticFinalizedForkVersionedResponse;
 use derivative::Derivative;
+use either::Either;
 use futures::Stream;
 use futures_util::StreamExt;
 use libp2p_identity::PeerId;
@@ -1323,9 +1324,9 @@ impl BeaconNodeHttpClient {
     }
 
     /// `POST v2/beacon/pool/attestations`
-    pub async fn post_beacon_pool_attestations_v2(
+    pub async fn post_beacon_pool_attestations_v2<E: EthSpec>(
         &self,
-        attestations: &[SingleAttestation],
+        attestations: Either<Vec<Attestation<E>>, Vec<SingleAttestation>>,
         fork_name: ForkName,
     ) -> Result<(), Error> {
         let mut path = self.eth_path(V2)?;
@@ -1336,13 +1337,26 @@ impl BeaconNodeHttpClient {
             .push("pool")
             .push("attestations");
 
-        self.post_with_timeout_and_consensus_header(
-            path,
-            &attestations,
-            self.timeouts.attestation,
-            fork_name,
-        )
-        .await?;
+        match attestations {
+            Either::Right(attestations) => {
+                self.post_with_timeout_and_consensus_header(
+                    path,
+                    &attestations,
+                    self.timeouts.attestation,
+                    fork_name,
+                )
+                .await?;
+            }
+            Either::Left(attestations) => {
+                self.post_with_timeout_and_consensus_header(
+                    path,
+                    &attestations,
+                    self.timeouts.attestation,
+                    fork_name,
+                )
+                .await?;
+            }
+        };
 
         Ok(())
     }
