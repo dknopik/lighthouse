@@ -673,7 +673,11 @@ mod tests {
                 let mut altair_block = BeaconBlockAltair::<E>::empty(&spec);
                 altair_block.slot = altair_fork_slot;
                 validator_store
-                    .sign_block(pubkey, BeaconBlock::Altair(altair_block).into(), altair_fork_slot)
+                    .sign_block(
+                        pubkey,
+                        BeaconBlock::Altair(altair_block).into(),
+                        altair_fork_slot,
+                    )
                     .await
                     .unwrap()
             }
