@@ -16,6 +16,6 @@ pub use pubsub::{PubsubMessage, SnappyTransform};
 pub use subnet::{Subnet, SubnetDiscovery};
 pub use topics::{
     attestation_sync_committee_topics, core_topics_to_subscribe, fork_core_topics,
-    subnet_from_topic_hash, GossipEncoding, GossipKind, GossipTopic, ALTAIR_CORE_TOPICS,
-    BASE_CORE_TOPICS, CAPELLA_CORE_TOPICS, LIGHT_CLIENT_GOSSIP_TOPICS,
+    subnet_from_topic_hash, GossipEncoding, GossipKind, GossipTopic, TopicConfig,
+    ALTAIR_CORE_TOPICS, BASE_CORE_TOPICS, CAPELLA_CORE_TOPICS, LIGHT_CLIENT_GOSSIP_TOPICS,
 };

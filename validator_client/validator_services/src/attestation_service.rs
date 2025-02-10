@@ -1,5 +1,6 @@
 use crate::duties_service::{DutiesService, DutyAndProof};
 use beacon_node_fallback::{ApiTopic, BeaconNodeFallback};
+use either::Either;
 use futures::future::join_all;
 use logging::crit;
 use slot_clock::SlotClock;
@@ -451,7 +452,7 @@ impl<S: ValidatorStore + 'static, T: SlotClock + 'static> AttestationService<S, 
                         .iter()
                         .zip(validator_indices)
                         .filter_map(|(a, i)| {
-                            match a.to_single_attestation_with_attester_index(*i as usize) {
+                            match a.to_single_attestation_with_attester_index(*i) {
                                 Ok(a) => Some(a),
                                 Err(e) => {
                                     // This shouldn't happen unless BN and VC are out of sync with
@@ -468,8 +469,12 @@ impl<S: ValidatorStore + 'static, T: SlotClock + 'static> AttestationService<S, 
                             }
                         })
                         .collect::<Vec<_>>();
+
                     beacon_node
-                        .post_beacon_pool_attestations_v2(&single_attestations, fork_name)
+                        .post_beacon_pool_attestations_v2::<S::E>(
+                            Either::Right(single_attestations),
+                            fork_name,
+                        )
                         .await
                 } else {
                     beacon_node
