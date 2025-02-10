@@ -117,7 +117,11 @@ impl<T: SlotClock + 'static, E: EthSpec> LighthouseValidatorStore<T, E> {
     pub fn register_all_in_doppelganger_protection_if_enabled(&self) -> Result<(), String> {
         if let Some(doppelganger_service) = &self.doppelganger_service {
             for pubkey in self.validators.read().iter_voting_pubkeys() {
-                doppelganger_service.register_new_validator::<E, _>(*pubkey, &self.slot_clock)?
+                doppelganger_service.register_new_validator(
+                    *pubkey,
+                    &self.slot_clock,
+                    E::slots_per_epoch(),
+                )?
             }
         }
 
@@ -193,8 +197,11 @@ impl<T: SlotClock + 'static, E: EthSpec> LighthouseValidatorStore<T, E> {
             .map_err(|e| format!("failed to register validator: {:?}", e))?;
 
         if let Some(doppelganger_service) = &self.doppelganger_service {
-            doppelganger_service
-                .register_new_validator::<E, _>(validator_pubkey, &self.slot_clock)?;
+            doppelganger_service.register_new_validator(
+                validator_pubkey,
+                &self.slot_clock,
+                E::slots_per_epoch(),
+            )?;
         }
 
         self.validators

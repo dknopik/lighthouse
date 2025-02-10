@@ -236,7 +236,7 @@ impl DoppelgangerService {
         // Define the `get_liveness` function as one that queries the beacon node API.
         let log = service.log.clone();
         let get_liveness = move |current_epoch, validator_indices| {
-            beacon_node_liveness(
+            beacon_node_liveness::<T>(
                 beacon_nodes.clone(),
                 log.clone(),
                 current_epoch,
@@ -332,17 +332,18 @@ impl DoppelgangerService {
     ///
     /// Validators added during the genesis epoch will not have doppelganger protection applied to
     /// them.
-    pub fn register_new_validator<E: EthSpec, T: SlotClock>(
+    pub fn register_new_validator<T: SlotClock>(
         &self,
         validator: PublicKeyBytes,
         slot_clock: &T,
+        slots_per_epoch: u64,
     ) -> Result<(), String> {
         let current_epoch = slot_clock
             // If registering before genesis, use the genesis slot.
             .now_or_genesis()
             .ok_or_else(|| "Unable to read slot clock when registering validator".to_string())?
-            .epoch(E::slots_per_epoch());
-        let genesis_epoch = slot_clock.genesis_slot().epoch(E::slots_per_epoch());
+            .epoch(slots_per_epoch);
+        let genesis_epoch = slot_clock.genesis_slot().epoch(slots_per_epoch);
 
         let remaining_epochs = if current_epoch <= genesis_epoch {
             // Disable doppelganger protection when the validator was initialized before genesis.
@@ -738,7 +739,7 @@ mod test {
                 .expect("index should exist");
 
             self.doppelganger
-                .register_new_validator::<E, _>(pubkey, &self.slot_clock)
+                .register_new_validator(pubkey, &self.slot_clock, E::slots_per_epoch())
                 .unwrap();
             self.doppelganger
                 .doppelganger_states

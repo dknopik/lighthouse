@@ -17,6 +17,5 @@ slot_clock = { workspace = true }
 types = { workspace = true }
 validator_metrics = { workspace = true }
 validator_services = { workspace = true }
-validator_store = { workspace = true }
 warp = { workspace = true }
 warp_utils = { workspace = true }

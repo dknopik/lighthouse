@@ -381,7 +381,7 @@ impl<S: ValidatorStore, T: SlotClock + 'static> DutiesService<S, T> {
     /// It is possible that multiple validators have an identical proposal slot, however that is
     /// likely the result of heavy forking (lol) or inconsistent beacon node connections.
     pub fn block_proposers<E: EthSpec>(&self, slot: Slot) -> HashSet<PublicKeyBytes> {
-        let epoch = slot.epoch(E::slots_per_epoch());
+        let epoch = slot.epoch(S::E::slots_per_epoch());
 
         // Only collect validators that are considered safe in terms of doppelganger protection.
         let signing_pubkeys: HashSet<_> = self

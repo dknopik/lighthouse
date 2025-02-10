@@ -113,7 +113,7 @@ impl ApiTester {
 
         let initialized_validators = validator_store.initialized_validators();
 
-        let context = Arc::new(Context {
+        let context = Arc::new(Context::<_, E> {
             task_executor: test_runtime.task_executor.clone(),
             api_secret,
             block_service: None,
