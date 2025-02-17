@@ -101,7 +101,6 @@ where
     Pub: TPublicKey,
     Sec: TSecretKey<Sig, Pub> + Clone,
 {
-
     /// Instantiates `Self` from a `point`.
     /// Takes a reference, as moves might accidentally leave behind key material
     pub fn from_point(point: &Sec) -> Self {
