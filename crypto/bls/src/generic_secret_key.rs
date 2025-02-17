@@ -66,16 +66,6 @@ where
         &self.point
     }
 
-    /// Instantiates `Self` from a `point`.
-    /// Takes a reference, as moves might accidentally leave behind key material
-    pub fn from_point(point: &Sec) -> Self {
-        Self {
-            point: point.clone(),
-            _phantom_signature: PhantomData,
-            _phantom_public_key: PhantomData,
-        }
-    }
-
     /// Serialize `self` as compressed bytes.
     ///
     /// ## Note
@@ -101,6 +91,24 @@ where
                 _phantom_signature: PhantomData,
                 _phantom_public_key: PhantomData,
             })
+        }
+    }
+}
+
+impl<Sig, Pub, Sec> GenericSecretKey<Sig, Pub, Sec>
+where
+    Sig: TSignature<Pub>,
+    Pub: TPublicKey,
+    Sec: TSecretKey<Sig, Pub> + Clone,
+{
+
+    /// Instantiates `Self` from a `point`.
+    /// Takes a reference, as moves might accidentally leave behind key material
+    pub fn from_point(point: &Sec) -> Self {
+        Self {
+            point: point.clone(),
+            _phantom_signature: PhantomData,
+            _phantom_public_key: PhantomData,
         }
     }
 }
