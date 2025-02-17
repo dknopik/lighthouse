@@ -25,6 +25,16 @@ pub const INFINITY_SIGNATURE: [u8; SIGNATURE_BYTES_LEN] = [
     0,
 ];
 
+pub const INFINITY_SIGNATURE_UNCOMPRESSED: [u8; SIGNATURE_UNCOMPRESSED_BYTES_LEN] = [
+    0x40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0,
+];
+
 /// The compressed bytes used to represent `GenericSignature::empty()`.
 pub const NONE_SIGNATURE: [u8; SIGNATURE_BYTES_LEN] = [0; SIGNATURE_BYTES_LEN];
 
@@ -148,9 +158,11 @@ where
 
     /// Deserialize `self` from uncompressed bytes.
     pub fn deserialize_uncompressed(bytes: &[u8]) -> Result<Self, Error> {
+        // The "none signature" is a beacon chain concept. As we never directly deal with
+        // uncompressed signatures on the beacon chain, it does not apply here.
         Ok(Self {
             point: Some(Sig::deserialize_uncompressed(bytes)?),
-            is_infinity: false, // todo
+            is_infinity: bytes == &INFINITY_SIGNATURE_UNCOMPRESSED[..],
             _phantom: PhantomData,
         })
     }
