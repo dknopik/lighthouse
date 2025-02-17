@@ -67,9 +67,10 @@ where
     }
 
     /// Instantiates `Self` from a `point`.
-    pub fn from_point(point: Sec) -> Self {
+    /// Takes a reference, as moves might accidentally leave behind key material
+    pub fn from_point(point: &Sec) -> Self {
         Self {
-            point,
+            point: point.clone(),
             _phantom_signature: PhantomData,
             _phantom_public_key: PhantomData,
         }
