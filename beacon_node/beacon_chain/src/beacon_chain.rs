@@ -34,6 +34,7 @@ use crate::execution_payload::{get_execution_payload, NotifyExecutionLayer, Prep
 use crate::fork_choice_signal::{ForkChoiceSignalRx, ForkChoiceSignalTx, ForkChoiceWaitResult};
 use crate::graffiti_calculator::GraffitiCalculator;
 use crate::head_tracker::{HeadTracker, HeadTrackerReader, SszHeadTracker};
+use crate::kzg_utils::reconstruct_blobs;
 use crate::light_client_finality_update_verification::{
     Error as LightClientFinalityUpdateError, VerifiedLightClientFinalityUpdate,
 };
@@ -1247,6 +1248,55 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         block_root: &Hash256,
     ) -> Result<BlobSidecarListFromRoot<T::EthSpec>, Error> {
         self.store.get_blobs(block_root).map_err(Error::from)
+    }
+
+    /// Returns the data columns at the given root, if any.
+    ///
+    /// ## Errors
+    /// May return a database error.
+    pub fn get_data_columns(
+        &self,
+        block_root: &Hash256,
+    ) -> Result<Option<DataColumnSidecarList<T::EthSpec>>, Error> {
+        self.store.get_data_columns(block_root).map_err(Error::from)
+    }
+
+    /// Returns the blobs at the given root, if any.
+    ///
+    /// Uses the `block.epoch()` to determine whether to retrieve blobs or columns from the store.
+    ///
+    /// If at least 50% of columns are retrieved, blobs will be reconstructed and returned,
+    /// otherwise an error `InsufficientColumnsToReconstructBlobs` is returned.
+    ///
+    /// ## Errors
+    /// May return a database error.
+    pub fn get_or_reconstruct_blobs(
+        &self,
+        block_root: &Hash256,
+    ) -> Result<Option<BlobSidecarList<T::EthSpec>>, Error> {
+        let Some(block) = self.store.get_blinded_block(block_root)? else {
+            return Ok(None);
+        };
+
+        if self.spec.is_peer_das_enabled_for_epoch(block.epoch()) {
+            if let Some(columns) = self.store.get_data_columns(block_root)? {
+                let num_required_columns = self.spec.number_of_columns / 2;
+                let reconstruction_possible = columns.len() >= num_required_columns as usize;
+                if reconstruction_possible {
+                    reconstruct_blobs(&self.kzg, &columns, None, &block, &self.spec)
+                        .map(Some)
+                        .map_err(Error::FailedToReconstructBlobs)
+                } else {
+                    Err(Error::InsufficientColumnsToReconstructBlobs {
+                        columns_found: columns.len(),
+                    })
+                }
+            } else {
+                Ok(None)
+            }
+        } else {
+            self.get_blobs(block_root).map(|b| b.blobs())
+        }
     }
 
     /// Returns the data columns at the given root, if any.
@@ -2924,10 +2974,9 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     /// Only completed sampling results are received. Blocks are unavailable by default and should
     /// be pruned on finalization, on a timeout or by a max count.
     pub async fn process_sampling_completed(self: &Arc<Self>, block_root: Hash256) {
-        // TODO(das): update fork-choice
+        // TODO(das): update fork-choice, act on sampling result, adjust log level
         // NOTE: It is possible that sampling complets before block is imported into fork choice,
         // in that case we may need to update availability cache.
-        // TODO(das): These log levels are too high, reduce once DAS matures
         info!(self.log, "Sampling completed"; "block_root" => %block_root);
     }
 
@@ -5850,6 +5899,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
                 let kzg = self.kzg.as_ref();
 
+                // TODO(fulu): we no longer need blob proofs from PeerDAS and could avoid computing.
                 kzg_utils::validate_blobs::<T::EthSpec>(
                     kzg,
                     expected_kzg_commitments,
