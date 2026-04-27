@@ -22,12 +22,13 @@ fixed_bytes = { workspace = true }
 fnv = { workspace = true }
 futures = { workspace = true }
 # Enable partial messages feature
-gossipsub = { package = "libp2p-gossipsub", git = "https://github.com/libp2p/rust-libp2p.git", features = ["partial_messages"] }
+gossipsub = { package = "libp2p-gossipsub", git = "https://github.com/dknopik/rust-libp2p.git", branch = "wiretap", features = ["partial_messages"] }
 hex = { workspace = true }
 if-addrs = "0.14"
 itertools = { workspace = true }
 libp2p = { workspace = true }
-libp2p-mplex = { git = "https://github.com/libp2p/rust-libp2p.git" }
+libp2p-mplex = { git = "https://github.com/dknopik/rust-libp2p.git", branch = "wiretap" }
+libp2p-wiretap = { workspace = true }
 lighthouse_version = { workspace = true }
 logging = { workspace = true }
 lru = { workspace = true }

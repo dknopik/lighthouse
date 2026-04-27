@@ -388,6 +388,22 @@ pub fn cli_app() -> Command {
                 .display_order(0)
         )
         .arg(
+            Arg::new("instrument-socket")
+                .long("instrument-socket")
+                .value_name("ADDRESS")
+                .help("Enable xray wiretap instrumentation and stream traffic to the given ingest address (Unix socket path or host:port).")
+                .action(ArgAction::Set)
+                .display_order(0)
+        )
+        .arg(
+            Arg::new("instrument-file")
+                .long("instrument-file")
+                .value_name("FILE")
+                .help("Enable xray wiretap instrumentation and write a local trace file at the given path.")
+                .action(ArgAction::Set)
+                .display_order(0)
+        )
+        .arg(
             Arg::new("disable-peer-scoring")
                 .long("disable-peer-scoring")
                 .help("Disables peer scoring in lighthouse. WARNING: This is a dev only flag is only meant to be used in local testing scenarios \

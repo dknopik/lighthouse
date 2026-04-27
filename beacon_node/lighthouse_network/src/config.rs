@@ -143,6 +143,12 @@ pub struct Config {
 
     /// Whether to enable partial data column support.
     pub enable_partial_columns: bool,
+
+    /// Wiretap ingest socket address (Unix path or host:port) for streaming traffic to xray.
+    pub instrument_socket: Option<String>,
+
+    /// Wiretap trace file path for recording traffic locally.
+    pub instrument_file: Option<PathBuf>,
 }
 
 impl Config {
@@ -368,6 +374,8 @@ impl Default for Config {
             idontwant_message_size_threshold: DEFAULT_IDONTWANT_MESSAGE_SIZE_THRESHOLD,
             advertise_false_custody_group_count: None,
             enable_partial_columns: false,
+            instrument_socket: None,
+            instrument_file: None,
         }
     }
 }

@@ -1435,6 +1435,13 @@ pub fn set_network_config(
         config.disable_quic_support = true;
     }
 
+    if let Some(addr) = cli_args.get_one::<String>("instrument-socket") {
+        config.instrument_socket = Some(addr.clone());
+    }
+    if let Some(path) = cli_args.get_one::<String>("instrument-file") {
+        config.instrument_file = Some(path.into());
+    }
+
     if parse_flag(cli_args, "disable-upnp") {
         config.upnp_enabled = false;
     }

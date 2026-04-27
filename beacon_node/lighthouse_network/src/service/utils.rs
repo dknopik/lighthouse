@@ -7,6 +7,7 @@ use libp2p::core::{multiaddr::Multiaddr, muxing::StreamMuxerBox, transport::Boxe
 use libp2p::identity::{Keypair, secp256k1};
 use libp2p::metrics::Registry;
 use libp2p::{PeerId, Transport, core, gossipsub, noise, yamux};
+use libp2p_wiretap::WiretapConfig;
 use ssz::Decode;
 use std::collections::HashSet;
 use std::fs::File;
@@ -37,7 +38,7 @@ type BoxedTransport = Boxed<(PeerId, StreamMuxerBox)>;
 /// mplex/yamux as the multiplexing layer (when using TCP).
 pub fn build_transport(
     local_private_key: Keypair,
-    quic_support: bool,
+    config: &NetworkConfig,
 ) -> std::io::Result<BoxedTransport> {
     // mplex config
     let mut mplex_config = libp2p_mplex::Config::new();
@@ -46,6 +47,10 @@ pub fn build_transport(
 
     // yamux config
     let yamux_config = yamux::Config::default();
+
+    let peer_id = PeerId::from(local_private_key.public());
+    let wiretap_enabled = config.instrument_socket.is_some() || config.instrument_file.is_some();
+
     // Creates the TCP transport layer
     let tcp = libp2p::tcp::tokio::Transport::new(libp2p::tcp::Config::default().nodelay(true))
         .upgrade(core::upgrade::Version::V1)
@@ -55,7 +60,7 @@ pub fn build_transport(
             mplex_config,
         ))
         .timeout(Duration::from_secs(10));
-    let transport = if quic_support {
+    let transport = if !config.disable_quic_support {
         // Enables Quic
         // The default quic configuration suits us for now.
         let quic_config = libp2p::quic::Config::new(&local_private_key);
@@ -72,7 +77,25 @@ pub fn build_transport(
     };
 
     // Enables DNS over the transport.
-    let transport = libp2p::dns::tokio::Transport::system(transport)?.boxed();
+    let transport = libp2p::dns::tokio::Transport::system(transport)?;
+
+    // Optionally wrap with xray wiretap instrumentation.
+    let transport = if wiretap_enabled {
+        let wiretap_config = WiretapConfig {
+            ingest_addr: config.instrument_socket.clone(),
+            file_path: config.instrument_file.clone(),
+            client_name: config.client_version.clone(),
+            ..WiretapConfig::default()
+        };
+        libp2p_wiretap::wrap_transport(transport, wiretap_config, peer_id)
+            .map(|output, _| {
+                let (peer_id, muxer) = output;
+                (peer_id, StreamMuxerBox::new(muxer))
+            })
+            .boxed()
+    } else {
+        transport.boxed()
+    };
 
     Ok(transport)
 }

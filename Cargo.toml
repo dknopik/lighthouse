@@ -162,7 +162,8 @@ initialized_validators = { path = "validator_client/initialized_validators" }
 int_to_bytes = { path = "consensus/int_to_bytes" }
 itertools = "0.14"
 kzg = { path = "crypto/kzg" }
-libp2p = { git = "https://github.com/libp2p/rust-libp2p.git", default-features = false, features = ["identify", "yamux", "noise", "dns", "tcp", "tokio", "secp256k1", "macros", "metrics", "quic", "upnp", "gossipsub"] }
+libp2p = { git = "https://github.com/dknopik/rust-libp2p.git", branch = "wiretap", default-features = false, features = ["identify", "yamux", "noise", "dns", "tcp", "tokio", "secp256k1", "macros", "metrics", "quic", "upnp", "gossipsub"] }
+libp2p-wiretap = { git = "https://github.com/dknopik/rust-libp2p.git", branch = "wiretap" }
 libsecp256k1 = "0.7"
 lighthouse_network = { path = "beacon_node/lighthouse_network" }
 lighthouse_validator_store = { path = "validator_client/lighthouse_validator_store" }
