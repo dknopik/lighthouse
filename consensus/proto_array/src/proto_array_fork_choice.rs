@@ -2567,3 +2567,51 @@ mod test_find_head {
         }
     }
 }
+
+#[cfg(test)]
+mod test_payload_envelope {
+    use super::*;
+    use types::MainnetEthSpec;
+
+    /// The envelope is only persisted once its verdict is applied, so a verdict that fails to
+    /// apply must not mark the payload as received.
+    #[test]
+    fn payload_received_only_once_verdict_applied() {
+        let mut spec = MainnetEthSpec::default_spec();
+        spec.gloas_fork_epoch = Some(Epoch::new(0));
+        let checkpoint = Checkpoint {
+            epoch: Epoch::new(0),
+            root: Hash256::from_low_u64_be(1),
+        };
+        let shuffling_id = AttestationShufflingId::from_components(Epoch::new(0), Hash256::zero());
+        let block_hash = ExecutionBlockHash::from_root(Hash256::from_low_u64_be(2));
+        let mut fork_choice = ProtoArrayForkChoice::new::<MainnetEthSpec>(
+            Slot::new(0),
+            Slot::new(0),
+            Hash256::zero(),
+            checkpoint,
+            checkpoint,
+            shuffling_id.clone(),
+            shuffling_id,
+            ExecutionStatus::irrelevant(),
+            Some(ExecutionBlockHash::zero()),
+            Some(block_hash),
+            0,
+            &spec,
+        )
+        .unwrap();
+
+        fork_choice
+            .on_payload_envelope_received(
+                checkpoint.root,
+                ExecutionStatus::NotYetRevealed(block_hash),
+            )
+            .expect_err("an envelope without an EL verdict should be rejected");
+        assert!(!fork_choice.is_payload_received(&checkpoint.root));
+
+        fork_choice
+            .on_payload_envelope_received(checkpoint.root, ExecutionStatus::Optimistic(block_hash))
+            .unwrap();
+        assert!(fork_choice.is_payload_received(&checkpoint.root));
+    }
+}
