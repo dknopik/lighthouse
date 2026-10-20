@@ -956,11 +956,13 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
     /// Starts retrieving the custody columns of a block whose blob data we do not hold yet:
     /// attempts to fetch the blobs from the EL, then requests the missing cells from peers via
-    /// partial columns. The retrieval is traced within `span`.
+    /// partial columns. Full columns built from the EL's blobs are published only if
+    /// `publish_blobs` is set. The retrieval is traced within `span`.
     pub(crate) fn spawn_fetch_block_columns(
         self: &Arc<Self>,
         block_root: Hash256,
         block: Arc<SignedBeaconBlock<T::EthSpec>>,
+        publish_blobs: bool,
         source: EnvelopeSource,
         span: Span,
     ) {
@@ -969,7 +971,6 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             EnvelopeSource::Rpc => "fetch_blobs_rpc",
             EnvelopeSource::Http => "fetch_blobs_http",
         };
-        let publish_blobs = true;
         let self_clone = self.clone();
         self.executor.spawn(
             async move {

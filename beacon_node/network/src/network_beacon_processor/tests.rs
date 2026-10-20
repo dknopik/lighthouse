@@ -20,7 +20,7 @@ use beacon_chain::test_utils::{
     AttestationStrategy, BeaconChainHarness, BlockStrategy, EphemeralHarnessType, get_kzg,
     pooled_payload_attestation_bits, ptc_seats, test_spec,
 };
-use beacon_chain::{BeaconChain, WhenSlotSkipped};
+use beacon_chain::{BeaconChain, ChainConfig, WhenSlotSkipped};
 use beacon_processor::{work_reprocessing_queue::*, *};
 use enr::{self, CombinedKey};
 use itertools::Itertools;
@@ -31,7 +31,8 @@ use lighthouse_network::rpc::methods::{
     MetaDataV3, PayloadEnvelopesByRangeRequest, PayloadEnvelopesByRootRequest,
 };
 use lighthouse_network::{
-    Client, MessageId, NetworkConfig, NetworkGlobals, PeerAction, PeerId, Response,
+    Client, MessageId, NetworkConfig, NetworkGlobals, PeerAction, PeerId, PubsubPartialMessage,
+    Response,
     rpc::methods::{MetaData, MetaDataV2},
     types::{EnrAttestationBitfield, EnrSyncCommitteeBitfield},
 };
@@ -100,6 +101,7 @@ pub struct TestRigParams {
     beacon_processor_config: BeaconProcessorConfig,
     node_custody_type: NodeCustodyType,
     generate_blobs: bool,
+    chain_config: ChainConfig,
     spec: ChainSpec,
 }
 
@@ -113,6 +115,7 @@ impl TestRig {
             beacon_processor_config: BeaconProcessorConfig::default(),
             node_custody_type: NodeCustodyType::Fullnode,
             generate_blobs: true,
+            chain_config: <_>::default(),
             spec,
         })
         .await
@@ -127,6 +130,7 @@ impl TestRig {
             beacon_processor_config: BeaconProcessorConfig::default(),
             node_custody_type: NodeCustodyType::Supernode,
             generate_blobs: true,
+            chain_config: <_>::default(),
             spec,
         })
         .await
@@ -188,6 +192,7 @@ impl TestRig {
             beacon_processor_config,
             node_custody_type,
             generate_blobs,
+            chain_config,
             spec,
         } = params;
 
@@ -198,7 +203,7 @@ impl TestRig {
             .fresh_ephemeral_store()
             .mock_execution_layer()
             .node_custody_type(node_custody_type)
-            .chain_config(<_>::default())
+            .chain_config(chain_config)
             .build();
 
         harness
@@ -1524,6 +1529,7 @@ async fn new_rig_disable_blobs_pre_fulu() -> TestRig {
         beacon_processor_config: Default::default(),
         node_custody_type: Default::default(),
         generate_blobs: enable_blobs,
+        chain_config: <_>::default(),
         spec,
     })
     .await
@@ -2122,6 +2128,135 @@ async fn rpc_columns_notify_after_deferred_envelope_import() {
     );
 }
 
+/// A Gloas block from a lookup is imported without its data, which belongs to its payload. The
+/// processor must still fetch that data from the EL rather than leave it all to peers.
+#[tokio::test]
+async fn lookup_gloas_block_fetches_payload_data_from_el() {
+    if test_spec::<E>().gloas_fork_epoch.is_none() {
+        return;
+    }
+
+    let rig = TestRig::new(SMALL_CHAIN).await;
+    let block_root = rig.next_block.canonical_root();
+    assert!(
+        !rig.next_block
+            .message()
+            .body()
+            .signed_execution_payload_bid()
+            .expect("Gloas payload bid")
+            .message()
+            .blob_kzg_commitments()
+            .is_empty(),
+        "precondition: the block should commit to blobs"
+    );
+
+    rig.network_beacon_processor
+        .clone()
+        .process_lookup_block(
+            junk_peer_id(),
+            block_root,
+            LookupBlock::new(block_root, rig.next_block.clone()),
+            BlockProcessType::SingleBlock { id: 1 },
+            rig.duplicate_cache.clone(),
+        )
+        .await;
+
+    // The fetch runs on its own task, so that sync can proceed with the imported block.
+    let sampling_columns = rig
+        .chain
+        .custody_context
+        .sampling_columns_for_epoch(rig.next_block.epoch());
+    let result = tokio::time::timeout(STANDARD_TIMEOUT, async {
+        while rig
+            .chain
+            .pending_payload_cache
+            .cached_data_column_indexes(&block_root)
+            .unwrap_or_default()
+            .len()
+            != sampling_columns.len()
+        {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await;
+    assert!(
+        result.is_ok(),
+        "the EL should supply every custody column of the payload"
+    );
+}
+
+/// Once the EL fetch for a block found by lookup has settled, the processor must publish partial
+/// columns for it. This requests the cells the EL could not supply and marks the local fetch as
+/// settled, so that partials merged later request the missing cells too.
+#[tokio::test]
+async fn lookup_block_publishes_partial_columns_after_el_fetch() {
+    let spec = test_spec::<E>();
+    if spec.fulu_fork_epoch.is_none() {
+        return;
+    }
+
+    let mut rig = TestRig::new_parametric(TestRigParams {
+        chain_length: SMALL_CHAIN,
+        beacon_processor_config: BeaconProcessorConfig::default(),
+        node_custody_type: NodeCustodyType::Fullnode,
+        generate_blobs: true,
+        chain_config: ChainConfig {
+            enable_partial_columns: true,
+            ..<_>::default()
+        },
+        spec,
+    })
+    .await;
+    let block_root = rig.next_block.canonical_root();
+
+    rig.network_beacon_processor
+        .clone()
+        .process_lookup_block(
+            junk_peer_id(),
+            block_root,
+            LookupBlock::new(block_root, rig.next_block.clone()),
+            BlockProcessType::SingleBlock { id: 1 },
+            rig.duplicate_cache.clone(),
+        )
+        .await;
+
+    // From Gloas the fetch runs on its own task, so wait for the publish.
+    let messages = tokio::time::timeout(STANDARD_TIMEOUT, async {
+        loop {
+            match rig.network_rx.recv().await {
+                Some(NetworkMessage::PublishPartialColumns { messages }) => break messages,
+                Some(_) => {}
+                None => panic!("network channel closed before partial columns were published"),
+            }
+        }
+    })
+    .await
+    .expect("partial columns should be published after the EL fetch");
+
+    let sampling_columns = rig
+        .chain
+        .custody_context
+        .sampling_columns_for_epoch(rig.next_block.epoch());
+    let published_columns = messages
+        .iter()
+        .map(|message| match message {
+            PubsubPartialMessage::DataColumnFulu { column, .. } => {
+                assert_eq!(column.block_root, block_root);
+                column.index
+            }
+            PubsubPartialMessage::DataColumnGloas { column, .. } => {
+                assert_eq!(column.block_root, block_root);
+                column.index
+            }
+        })
+        .collect::<HashSet<_>>();
+    assert_eq!(
+        published_columns,
+        sampling_columns.iter().copied().collect::<HashSet<_>>(),
+        "a partial should be published for every custody column"
+    );
+}
+
 /// Before Gloas, RPC custody columns complete a block import and should release work waiting for
 /// that block rather than work waiting for a payload envelope.
 #[tokio::test]
@@ -2415,6 +2550,7 @@ async fn test_backfill_sync_processing_rate_limiting_disabled() {
         beacon_processor_config,
         node_custody_type: NodeCustodyType::Fullnode,
         generate_blobs: true,
+        chain_config: <_>::default(),
         spec: test_spec::<E>(),
     })
     .await;
@@ -2502,6 +2638,7 @@ async fn test_blobs_by_range_spans_fulu_fork() {
         beacon_processor_config: BeaconProcessorConfig::default(),
         node_custody_type: NodeCustodyType::Fullnode,
         generate_blobs: true,
+        chain_config: <_>::default(),
         spec,
     })
     .await;

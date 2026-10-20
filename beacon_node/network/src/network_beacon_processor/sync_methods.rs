@@ -27,7 +27,7 @@ use lighthouse_network::PeerId;
 use lighthouse_network::service::api_types::CustodyBackfillBatchId;
 use logging::crit;
 use std::sync::Arc;
-use tracing::{debug, debug_span, error, info, instrument, warn};
+use tracing::{Span, debug, debug_span, error, info, instrument, warn};
 use types::{BlockImportSource, DataColumnSidecarList, Epoch, ExecutionBlockHash, Hash256};
 
 /// Id associated to a batch processing request, either a sync batch or a parent lookup.
@@ -205,6 +205,22 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 };
 
                 self.chain.recompute_head_at_current_slot().await;
+
+                // A Gloas block is imported without its data, which belongs to its payload. Fetch
+                // the data from the EL as for a block missing components, if the payload is not
+                // imported yet, then request the cells the EL lacks via partial columns. As the
+                // block itself is imported, spawn the fetch so that sync can proceed with the
+                // payload and child blocks meanwhile.
+                if !self.chain.is_block_data_imported(block_root) {
+                    let publish_blobs = false;
+                    self.spawn_fetch_block_columns(
+                        block_root,
+                        signed_beacon_block,
+                        publish_blobs,
+                        EnvelopeSource::Rpc,
+                        Span::current(),
+                    );
+                }
             }
             Ok(AvailabilityProcessingStatus::MissingComponents(..)) => {
                 // Block is valid, we can now attempt fetching blobs from EL using version hashes
@@ -215,12 +231,15 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 {
                     let publish_blobs = false;
                     self.fetch_engine_blobs_and_publish_full(
-                        header_or_bid,
+                        header_or_bid.clone(),
                         block_root,
                         publish_blobs,
                         EnvelopeSource::Rpc,
                     )
                     .await;
+                    // The local fetch has settled, so request the cells the EL did not supply.
+                    self.publish_partial_data_columns(header_or_bid, block_root)
+                        .await;
                 } else {
                     error!(
                         ?block_root,

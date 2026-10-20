@@ -1947,9 +1947,11 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
         // Block is gossip valid. Attempt to fetch blobs from the EL using versioned hashes derived
         // from kzg commitments, without having to wait for all blobs to be sent from the peers.
+        let publish_blobs = true;
         self.spawn_fetch_block_columns(
             block_root,
             block.clone(),
+            publish_blobs,
             EnvelopeSource::Gossip,
             Span::current(),
         );

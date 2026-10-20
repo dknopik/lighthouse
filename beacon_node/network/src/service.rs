@@ -694,9 +694,11 @@ impl<T: BeaconChainTypes> NetworkService<T> {
                 block,
                 span,
             } => {
+                let publish_blobs = true;
                 self.network_beacon_processor.spawn_fetch_block_columns(
                     block_root,
                     block,
+                    publish_blobs,
                     EnvelopeSource::Http,
                     span,
                 );
