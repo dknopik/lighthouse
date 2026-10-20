@@ -32,6 +32,14 @@ use crate::{
 
 const ENVELOPE_METRICS_CACHE_SLOT_LIMIT: u32 = 64;
 
+/// What importing an available payload envelope did.
+enum EnvelopeImportOutcome {
+    /// The payload was imported, or an already imported optimistic payload was promoted to valid.
+    Imported,
+    /// The payload was already imported and nothing changed.
+    Duplicate,
+}
+
 impl<T: BeaconChainTypes> BeaconChain<T> {
     /// Returns `Ok(status)` if the given `unverified_envelope` was successfully verified and
     /// imported into the chain.
@@ -141,6 +149,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
                 Ok(status)
             }
+            // Already logged by the import.
+            Err(err @ BlockError::DuplicateFullyImported(_)) => Err(err),
             Err(err) => {
                 // A definitive EL rejection is attributable to the builder: the envelope's
                 // signature was verified at gossip and its payload is hash-bound to the committed
@@ -210,11 +220,14 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         ))
     }
 
+    /// Imports an available envelope.
+    ///
+    /// Returns `DuplicateFullyImported` if the payload was already imported and nothing changed.
     #[instrument(skip_all)]
     pub async fn import_available_execution_payload_envelope(
         self: &Arc<Self>,
         envelope: Box<AvailableExecutedEnvelope<T::EthSpec>>,
-    ) -> Result<AvailabilityProcessingStatus, EnvelopeError> {
+    ) -> Result<AvailabilityProcessingStatus, BlockError> {
         let AvailableExecutedEnvelope {
             envelope,
             block_root,
@@ -222,7 +235,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         } = *envelope;
         let slot = envelope.envelope.slot();
 
-        let block_root = {
+        let outcome = {
             let chain = self.clone();
             self.spawn_blocking_handle(
                 move || {
@@ -237,7 +250,12 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             .await??
         };
 
-        Ok(AvailabilityProcessingStatus::Imported(slot, block_root))
+        match outcome {
+            EnvelopeImportOutcome::Imported => {
+                Ok(AvailabilityProcessingStatus::Imported(slot, block_root))
+            }
+            EnvelopeImportOutcome::Duplicate => Err(BlockError::DuplicateFullyImported(block_root)),
+        }
     }
 
     /// Accepts a fully-verified and available envelope and imports it into the chain without performing any
@@ -252,7 +270,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         signed_envelope: AvailableEnvelope<T::EthSpec>,
         block_root: Hash256,
         payload_verification_status: PayloadVerificationStatus,
-    ) -> Result<Hash256, EnvelopeError> {
+    ) -> Result<EnvelopeImportOutcome, EnvelopeError> {
         // Everything in this initial section is on the hot path for processing the envelope.
         // Take an upgradable read lock on fork choice so we can check if this block has already
         // been imported. We don't want to repeat work importing a block that is already imported.
@@ -261,9 +279,46 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             return Err(EnvelopeError::BlockRootNotInForkChoice(block_root));
         }
 
-        // TODO(gloas) add defensive check to see if payload envelope is already in fork choice
-        // Note that a duplicate cache/payload status table should prevent this from happening
-        // but it doesnt hurt to be defensive.
+        // A payload can reach this point again after import. Component entry points reject data
+        // for an imported payload, but a component that passed that check just before the import
+        // finished still completes the pending components, which are never removed from the
+        // pending payload cache. A re-delivered envelope is also imported again. Only the first
+        // import may proceed. Imports are serialized on this lock, and an import only releases it
+        // once the payload is persisted or fork choice is poisoned, so a received payload is fully
+        // imported here unless fork choice is poisoned.
+        if fork_choice_reader.is_payload_received(&block_root) {
+            if self.canonical_head.fork_choice_poisoned() {
+                return Err(BeaconChainError::ForkChoicePoisoned.into());
+            }
+
+            // The EL may have verified the payload since it was imported optimistically.
+            let promotes_optimistic_payload = payload_verification_status
+                == PayloadVerificationStatus::Verified
+                && fork_choice_reader
+                    .get_block_execution_status_assuming_full(&block_root)
+                    .map_err(|e| EnvelopeError::InternalError(format!("{e:?}")))?
+                    .is_some_and(|verdict| verdict.is_optimistic());
+            if promotes_optimistic_payload {
+                fork_choice_reader
+                    .upgrade()
+                    .on_payload_envelope_received(
+                        block_root,
+                        payload_verification_status,
+                        signed_envelope.message().payload.block_hash,
+                    )
+                    .map_err(|e| EnvelopeError::InternalError(format!("{e:?}")))?;
+            }
+            debug!(
+                ?block_root,
+                promotes_optimistic_payload, "Payload envelope already imported"
+            );
+            // A promotion changed fork choice, so report it as an import.
+            return Ok(if promotes_optimistic_payload {
+                EnvelopeImportOutcome::Imported
+            } else {
+                EnvelopeImportOutcome::Duplicate
+            });
+        }
 
         // Take an exclusive write-lock on fork choice. It's very important to prevent deadlocks by
         // avoiding taking other locks whilst holding this lock.
@@ -344,7 +399,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             envelope_time_imported,
         );
 
-        Ok(block_root)
+        Ok(EnvelopeImportOutcome::Imported)
     }
 
     fn import_envelope_update_metrics_and_events(

@@ -1,9 +1,10 @@
 use beacon_chain::AvailabilityProcessingStatus::{Imported, MissingComponents};
-use beacon_chain::NotifyExecutionLayer;
 use beacon_chain::payload_envelope_verification::{EnvelopeError, EnvelopeSource};
+use beacon_chain::pending_payload_cache::Availability;
 use beacon_chain::test_utils::{
     BeaconChainHarness, fork_name_from_env, generate_data_column_sidecars_from_block, test_spec,
 };
+use beacon_chain::{BeaconChainError, BlockError, NotifyExecutionLayer};
 use bls::PublicKeyBytes;
 use eth2::types::EventKind;
 use proto_array::ExecutionStatus;
@@ -726,6 +727,139 @@ async fn a_later_valid_payload_promotes_its_optimistic_ancestors() {
         is_valid_and_post_bellatrix(execution_status(&harness, first_root)),
         "promotion must walk the whole ancestry, not just one step",
     );
+}
+
+/// The node imports a payload optimistically while the execution layer is syncing. Once the same
+/// envelope arrives again with a valid verdict, e.g. republished over HTTP, the payload is valid.
+#[tokio::test]
+async fn reimported_valid_payload_promotes_optimistic_payload() {
+    if !fork_name_from_env().is_some_and(|f| f.gloas_enabled()) {
+        return;
+    }
+
+    let harness = gloas_harness();
+    harness.extend_to_slot(Slot::new(1)).await;
+
+    let mock = harness
+        .mock_execution_layer
+        .as_ref()
+        .expect("mock execution layer");
+
+    mock.server.all_payloads_syncing(true);
+    let block_root = import_block_and_envelope(&harness, Slot::new(2)).await;
+    assert!(is_optimistic(execution_status(&harness, block_root)));
+
+    mock.server.all_payloads_valid();
+    let envelope = harness
+        .chain
+        .get_payload_envelope(&block_root)
+        .expect("store read should succeed")
+        .expect("imported envelope should be stored");
+    let gossip_verified = harness
+        .chain
+        .verify_envelope_for_gossip(Arc::new(envelope), EnvelopeSource::Http)
+        .await
+        .expect("republished envelope should verify");
+    let status = harness
+        .chain
+        .process_execution_payload_envelope(
+            block_root,
+            gossip_verified,
+            NotifyExecutionLayer::Yes,
+            BlockImportSource::HttpApi,
+            #[allow(clippy::result_large_err)]
+            || Ok(()),
+        )
+        .await
+        .expect("importing the envelope again should succeed");
+
+    assert!(matches!(status, Imported(_, root) if root == block_root));
+    assert!(
+        is_valid_and_post_bellatrix(execution_status(&harness, block_root)),
+        "the valid verdict must reach fork choice even though the payload was already imported",
+    );
+}
+
+/// Pending components stay in the pending payload cache after import, so a component arriving
+/// later makes the payload available again. Importing it again must report a duplicate without
+/// writing the payload to fork choice and the database a second time.
+#[tokio::test]
+async fn payload_available_again_after_import_is_not_reimported() {
+    if !fork_name_from_env().is_some_and(|f| f.gloas_enabled()) {
+        return;
+    }
+
+    let harness = gloas_harness();
+    harness.extend_to_slot(Slot::new(1)).await;
+    let block_root = import_block_and_envelope(&harness, Slot::new(2)).await;
+    let mut payload_receiver = harness
+        .chain
+        .event_handler
+        .as_ref()
+        .expect("event handler")
+        .subscribe_execution_payload();
+
+    // A late merge that adds nothing new, e.g. EL blobs racing the gossip columns.
+    let availability = harness
+        .chain
+        .pending_payload_cache
+        .put_kzg_verified_custody_data_columns(block_root, &[])
+        .expect("cache entry should outlive the import");
+    let Availability::Available(available_envelope) = availability else {
+        panic!("imported payload should still be available in the cache, got {availability:?}");
+    };
+
+    let result = harness
+        .chain
+        .import_available_execution_payload_envelope(available_envelope)
+        .await;
+    assert!(
+        matches!(result, Err(BlockError::DuplicateFullyImported(root)) if root == block_root),
+        "second import should report a duplicate, got {result:?}",
+    );
+    assert!(
+        payload_receiver.try_recv().is_err(),
+        "a duplicate import must not emit execution_payload again"
+    );
+}
+
+/// A failed write poisons fork choice but leaves the payload received in memory while the store
+/// lacks it. Importing the payload again must fail instead of reporting it as imported.
+#[tokio::test]
+async fn payload_available_again_with_poisoned_fork_choice_is_not_reported_imported() {
+    if !fork_name_from_env().is_some_and(|f| f.gloas_enabled()) {
+        return;
+    }
+
+    let harness = gloas_harness();
+    harness.extend_to_slot(Slot::new(1)).await;
+    let block_root = import_block_and_envelope(&harness, Slot::new(2)).await;
+    harness.chain.canonical_head.poison_fork_choice();
+
+    let availability = harness
+        .chain
+        .pending_payload_cache
+        .put_kzg_verified_custody_data_columns(block_root, &[])
+        .expect("cache entry should outlive the import");
+    let Availability::Available(available_envelope) = availability else {
+        panic!("imported payload should still be available in the cache, got {availability:?}");
+    };
+
+    let result = harness
+        .chain
+        .import_available_execution_payload_envelope(available_envelope)
+        .await;
+    match result {
+        Err(BlockError::EnvelopeError(error)) => assert!(
+            matches!(
+                *error,
+                EnvelopeError::BeaconChainError(ref e)
+                    if matches!(**e, BeaconChainError::ForkChoicePoisoned)
+            ),
+            "import should fail due to the poisoned fork choice, got {error:?}",
+        ),
+        other => panic!("import should fail due to the poisoned fork choice, got {other:?}"),
+    }
 }
 
 fn is_valid_and_post_bellatrix(status: ExecutionStatus) -> bool {

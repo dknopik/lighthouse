@@ -342,7 +342,9 @@ pub async fn publish_execution_payload_envelope<T: BeaconChainTypes>(
         .await;
 
     let mut envelope_imported = match import_result {
-        Ok(AvailabilityProcessingStatus::Imported(_, _)) => true,
+        // A duplicate is already imported, e.g. a republished envelope.
+        Ok(AvailabilityProcessingStatus::Imported(_, _))
+        | Err(BlockError::DuplicateFullyImported(_)) => true,
         Ok(AvailabilityProcessingStatus::MissingComponents(_, _)) => false,
         Err(e) => {
             if is_unable_to_publish(&e) {
