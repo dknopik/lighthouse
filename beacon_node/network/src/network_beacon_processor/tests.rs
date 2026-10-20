@@ -2018,6 +2018,63 @@ async fn rpc_columns_notify_after_deferred_envelope_import() {
     );
 }
 
+/// A Gloas block from a lookup is imported without its data, which belongs to its payload. The
+/// processor must still fetch that data from the EL rather than leave it all to peers.
+#[tokio::test]
+async fn lookup_gloas_block_fetches_payload_data_from_el() {
+    if test_spec::<E>().gloas_fork_epoch.is_none() {
+        return;
+    }
+
+    let rig = TestRig::new(SMALL_CHAIN).await;
+    let block_root = rig.next_block.canonical_root();
+    assert!(
+        !rig.next_block
+            .message()
+            .body()
+            .signed_execution_payload_bid()
+            .expect("Gloas payload bid")
+            .message()
+            .blob_kzg_commitments()
+            .is_empty(),
+        "precondition: the block should commit to blobs"
+    );
+
+    rig.network_beacon_processor
+        .clone()
+        .process_lookup_block(
+            junk_peer_id(),
+            block_root,
+            LookupBlock::new(block_root, rig.next_block.clone()),
+            BlockProcessType::SingleBlock { id: 1 },
+            rig.duplicate_cache.clone(),
+        )
+        .await;
+
+    // The fetch runs on its own task, so that sync can proceed with the imported block.
+    let sampling_columns = rig
+        .chain
+        .custody_context
+        .sampling_columns_for_epoch(rig.next_block.epoch());
+    let result = tokio::time::timeout(STANDARD_TIMEOUT, async {
+        while rig
+            .chain
+            .pending_payload_cache
+            .cached_data_column_indexes(&block_root)
+            .unwrap_or_default()
+            .len()
+            != sampling_columns.len()
+        {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await;
+    assert!(
+        result.is_ok(),
+        "the EL should supply every custody column of the payload"
+    );
+}
+
 /// Before Gloas, RPC custody columns complete a block import and should release work waiting for
 /// that block rather than work waiting for a payload envelope.
 #[tokio::test]
