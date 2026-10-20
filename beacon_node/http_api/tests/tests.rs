@@ -6175,6 +6175,87 @@ impl ApiTester {
         self
     }
 
+    pub async fn test_envelope_republish_after_import_returns_200(self) -> Self {
+        if !self.chain.spec.is_gloas_scheduled() {
+            return self;
+        }
+
+        let fork = self.chain.canonical_head.cached_head().head_fork();
+        let genesis_validators_root = self.chain.genesis_validators_root;
+        let Some((slot, epoch, fork_name)) = self.advance_to_gloas_slot() else {
+            return self;
+        };
+
+        let (sk, randao_reveal) = self
+            .proposer_setup(slot, epoch, &fork, genesis_validators_root)
+            .await;
+        let (response, metadata) = self
+            .client
+            .post_validator_blocks_v4::<E>(
+                slot,
+                &randao_reveal,
+                None,
+                true,
+                &eth2::types::BuilderConfig::empty(),
+                None,
+                ForkName::Gloas,
+            )
+            .await
+            .unwrap();
+        let BlockAndEnvelope {
+            block,
+            execution_payload_envelope: envelope,
+            kzg_proofs,
+            blobs,
+        } = self.unwrap_v4_block_contents(response, &metadata, slot);
+
+        let signed_block = block.sign(&sk, &fork, genesis_validators_root, &self.chain.spec);
+        let signed_block_request = PublishBlockRequest::try_from(Arc::new(signed_block)).unwrap();
+        self.client
+            .post_beacon_blocks_v2(&signed_block_request, None)
+            .await
+            .unwrap();
+
+        let block_root = envelope.beacon_block_root;
+        let signed_envelope =
+            self.sign_envelope(envelope, &sk, epoch, &fork, genesis_validators_root);
+        let contents = SignedExecutionPayloadEnvelopeContents {
+            signed_execution_payload_envelope: signed_envelope,
+            kzg_proofs,
+            blobs,
+        };
+        self.client
+            .post_beacon_execution_payload_envelope_contents(&contents, fork_name, None)
+            .await
+            .unwrap();
+        assert!(
+            self.chain.is_block_data_imported(block_root),
+            "precondition: the first publish should import the payload"
+        );
+
+        // Publishing again, e.g. to a beacon node that already imported the payload via gossip,
+        // must report success rather than a failed import.
+        let url = self
+            .client
+            .post_beacon_execution_payload_envelopes_path(None)
+            .unwrap();
+        let response = reqwest::Client::new()
+            .post(url)
+            .header(CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE_HEADER)
+            .header(CONSENSUS_VERSION_HEADER, fork_name.to_string())
+            .header(BLOB_DATA_INCLUDED_HEADER, "true")
+            .json(&contents)
+            .send()
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        self.chain.slot_clock.set_slot(slot.as_u64() + 1);
+
+        self
+    }
+
     pub async fn test_get_beacon_execution_payload_envelopes(self) -> Self {
         if !self.chain.spec.is_gloas_scheduled() {
             return self;
@@ -11415,6 +11496,8 @@ async fn envelope_api() {
         .test_envelope_post_equivocation_returns_400()
         .await
         .test_envelope_post_stateful_no_cached_blobs_returns_400()
+        .await
+        .test_envelope_republish_after_import_returns_200()
         .await
         .test_get_beacon_execution_payload_envelopes()
         .await

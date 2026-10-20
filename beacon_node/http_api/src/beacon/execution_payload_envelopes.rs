@@ -468,7 +468,9 @@ async fn publish_and_import_columns<T: BeaconChainTypes>(
     }
 
     match Box::pin(chain.process_gossip_data_columns(sampling_columns, || Ok(()))).await {
-        Ok(AvailabilityProcessingStatus::Imported(_, _)) => Ok(true),
+        // Gossip columns may have completed the payload first.
+        Ok(AvailabilityProcessingStatus::Imported(_, _))
+        | Err(BlockError::DuplicateFullyImported(_)) => Ok(true),
         Ok(AvailabilityProcessingStatus::MissingComponents(_, _)) => Ok(false),
         Err(e) => {
             error!(

@@ -261,9 +261,36 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             return Err(EnvelopeError::BlockRootNotInForkChoice(block_root));
         }
 
-        // TODO(gloas) add defensive check to see if payload envelope is already in fork choice
-        // Note that a duplicate cache/payload status table should prevent this from happening
-        // but it doesnt hurt to be defensive.
+        // Pending components are never removed from the pending payload cache, so any component
+        // arriving after import makes the payload available again. Several paths can also make it
+        // available concurrently. Only the first import may proceed. Imports are serialized on this
+        // lock, and an import only releases it once the payload is persisted (a failed write
+        // poisons fork choice instead), so a received payload is already fully imported here.
+        if fork_choice_reader.is_payload_received(&block_root) {
+            // The EL may have verified the payload since it was imported optimistically.
+            let promotes_optimistic_payload = payload_verification_status
+                == PayloadVerificationStatus::Verified
+                && fork_choice_reader
+                    .get_block_execution_status_assuming_full(&block_root)
+                    .ok()
+                    .flatten()
+                    .is_some_and(|verdict| verdict.is_optimistic());
+            if promotes_optimistic_payload {
+                fork_choice_reader
+                    .upgrade()
+                    .on_payload_envelope_received(
+                        block_root,
+                        payload_verification_status,
+                        signed_envelope.message().payload.block_hash,
+                    )
+                    .map_err(|e| EnvelopeError::InternalError(format!("{e:?}")))?;
+            }
+            debug!(
+                ?block_root,
+                promotes_optimistic_payload, "Payload envelope already imported"
+            );
+            return Ok(block_root);
+        }
 
         // Take an exclusive write-lock on fork choice. It's very important to prevent deadlocks by
         // avoiding taking other locks whilst holding this lock.
@@ -455,7 +482,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
         // Import directly — we already have all components (envelope + columns).
         let chain = self.clone();
-        // Propagate both the spawn_blocking_handle (outer `?`) and the import_execution_payload_envelope error (inner `?`).
+        // Propagate both the spawn_blocking_handle (`?`) and the import_execution_payload_envelope error (match).
         // So a failed envelope import returns Err(EnvelopeError) and retried
         self.spawn_blocking_handle(
             move || {
