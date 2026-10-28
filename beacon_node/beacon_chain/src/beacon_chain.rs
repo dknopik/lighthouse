@@ -4846,13 +4846,15 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         fork_choice_write_lock: ForkChoiceWriteGuard<T>,
         block_root: Hash256,
     ) {
+        // Poison before releasing the lock, so anything waiting on it to persist fork choice sees
+        // the flag.
+        self.canonical_head.poison_fork_choice();
         drop(fork_choice_write_lock);
 
         // Clear the early attester cache to prevent attestations which we would later be unable
         // to verify due to the failure.
         self.early_attester_cache.clear();
 
-        self.canonical_head.poison_fork_choice();
         crit!(
             ?block_root,
             advice = "restart the node to recover the last consistent fork choice from disk",
