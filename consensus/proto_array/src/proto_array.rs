@@ -885,7 +885,9 @@ impl ProtoArray {
 
     /// Record the execution layer's verdict for a Gloas block's payload envelope.
     ///
-    /// Sets `payload_received` to true whatever the verdict.
+    /// Sets `payload_received` to true whatever the verdict, but only once the verdict is applied:
+    /// the caller persists the envelope only on success, so a payload whose verdict failed to apply
+    /// must not count as received.
     pub fn on_payload_envelope_received(
         &mut self,
         block_root: Hash256,
@@ -902,14 +904,15 @@ impl ProtoArray {
         let v29 = node
             .as_v29_mut()
             .map_err(|_| Error::InvalidNodeVariant { block_root })?;
-        // The envelope arrived: record it so sync stops fetching, whatever the verdict.
-        v29.payload_received = true;
 
         // A settled verdict is never revisited: a duplicate `Valid`, or an `Invalid` the
         // invalidation sweep already set from this payload's condemned ancestry.
         match v29.execution_status {
             ExecutionStatus::NotYetRevealed(_) | ExecutionStatus::Optimistic(_) => {}
-            ExecutionStatus::Valid(_) | ExecutionStatus::Invalid(_) => return Ok(()),
+            ExecutionStatus::Valid(_) | ExecutionStatus::Invalid(_) => {
+                v29.payload_received = true;
+                return Ok(());
+            }
             ExecutionStatus::Irrelevant(_) => {
                 return Err(Error::Unexpected(format!(
                     "pre-merge status on a Gloas node: {block_root:?}"
@@ -919,22 +922,30 @@ impl ProtoArray {
 
         // Store the EL's verdict; only `Valid` also validates the branch this payload executed.
         match execution_status {
-            ExecutionStatus::Optimistic(_) => {
-                v29.execution_status = execution_status;
-                Ok(())
-            }
+            ExecutionStatus::Optimistic(_) => v29.execution_status = execution_status,
             ExecutionStatus::Valid(_) => {
                 // The walk validates this node on its own `FULL` side and every payload above it that
                 // its branch executed.
-                self.propagate_execution_payload_validation_from(index, ParentPayloadStatus::Full)
+                self.propagate_execution_payload_validation_from(index, ParentPayloadStatus::Full)?
             }
             // The fork choice wrapper only maps envelope verdicts to `Valid` or `Optimistic`.
             ExecutionStatus::Invalid(_)
             | ExecutionStatus::Irrelevant(_)
-            | ExecutionStatus::NotYetRevealed(_) => Err(Error::Unexpected(format!(
-                "envelope carries no EL verdict: {execution_status:?}"
-            ))),
+            | ExecutionStatus::NotYetRevealed(_) => {
+                return Err(Error::Unexpected(format!(
+                    "envelope carries no EL verdict: {execution_status:?}"
+                )));
+            }
         }
+
+        // The envelope arrived: record it so sync stops fetching, whatever the verdict.
+        self.nodes
+            .get_mut(index)
+            .ok_or(Error::InvalidNodeIndex(index))?
+            .as_v29_mut()
+            .map_err(|_| Error::InvalidNodeVariant { block_root })?
+            .payload_received = true;
+        Ok(())
     }
 
     /// Promotes the payload of `block_root` and every payload its branch executed to `Valid`.
