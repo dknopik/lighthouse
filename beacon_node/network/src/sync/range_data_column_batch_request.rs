@@ -185,13 +185,22 @@ impl<T: BeaconChainTypes> RangeDataColumnBatchRequest<T> {
                 .unique()
                 .collect::<Vec<_>>();
 
+            let fork_name = block.fork_name_unchecked();
+
             let column_block_signatures = columns
                 .iter()
                 .filter_map(|column| match column.as_ref() {
-                    DataColumnSidecar::Fulu(column) => {
+                    DataColumnSidecar::Fulu(column) if !fork_name.gloas_enabled() => {
                         Some(column.signed_block_header.signature.clone())
                     }
-                    _ => None,
+                    DataColumnSidecar::Gloas(_) if fork_name.gloas_enabled() => None,
+                    _ => {
+                        // The sidecar variant is unexpected.
+                        if let Some(naughty_peer) = column_to_peer.get(column.index()) {
+                            naughty_peers.push((*column.index(), *naughty_peer));
+                        }
+                        None
+                    }
                 })
                 .unique()
                 .collect::<Vec<_>>();
@@ -226,7 +235,7 @@ impl<T: BeaconChainTypes> RangeDataColumnBatchRequest<T> {
                 // We expect a single unique block signature
                 [block_signature] => Some(block_signature),
                 // Gloas columns do not contain a signed block header.
-                [] if block.fork_name_unchecked().gloas_enabled() => None,
+                [] if fork_name.gloas_enabled() => None,
                 // Fulu columns must contain a signed block header.
                 [] => {
                     for column in &columns {
