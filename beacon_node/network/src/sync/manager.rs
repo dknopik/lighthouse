@@ -74,7 +74,7 @@ use strum::IntoStaticStr;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, trace};
 use types::{
-    BlobSidecar, DataColumnSidecar, EthSpec, ExecutionBlockHash, ForkContext, Hash256,
+    BlobSidecar, ColumnIndex, DataColumnSidecar, EthSpec, ExecutionBlockHash, ForkContext, Hash256,
     SignedBeaconBlock, SignedExecutionPayloadEnvelope, Slot, new_non_zero_usize,
 };
 
@@ -240,7 +240,13 @@ pub enum CustodyBatchProcessResult {
         imported_columns: usize,
     },
     /// The custody batch processing failed.
-    Error { peer_action: Option<PeerAction> },
+    Error {
+        /// The penalty to apply if the failure is the fault of the peers that served the batch.
+        peer_action: Option<PeerAction>,
+        /// The columns that caused the failure. The peers that served them are penalized with
+        /// `peer_action`. Empty if the failure can't be attributed to specific columns.
+        faulty_columns: Vec<ColumnIndex>,
+    },
 }
 
 /// The primary object for handling and driving all the current syncing logic. It maintains the
@@ -351,6 +357,11 @@ impl<T: BeaconChainTypes> SyncManager<T> {
     #[cfg(test)]
     pub(crate) fn send_sync_message(&mut self, sync_message: SyncMessage<<T>::EthSpec>) {
         self.network.send_sync_message(sync_message);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn custody_backfill_sync(&mut self) -> &mut CustodyBackFillSync<T> {
+        &mut self.custody_backfill_sync
     }
 
     #[cfg(test)]

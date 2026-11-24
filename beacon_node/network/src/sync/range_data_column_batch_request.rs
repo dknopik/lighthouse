@@ -8,6 +8,9 @@ use lighthouse_network::service::api_types::DataColumnsByRangeRequestId;
 use std::sync::Arc;
 use types::{ColumnIndex, DataColumnSidecar, DataColumnSidecarList, Epoch, EthSpec, Slot};
 
+/// The data columns of a completed batch, along with the peer each column was requested from.
+pub type RangeDataColumnBatchResponse<E> = (DataColumnSidecarList<E>, HashMap<ColumnIndex, PeerId>);
+
 pub struct RangeDataColumnBatchRequest<T: BeaconChainTypes> {
     requests: HashMap<
         DataColumnsByRangeRequestId,
@@ -62,13 +65,21 @@ impl<T: BeaconChainTypes> RangeDataColumnBatchRequest<T> {
         req.finish(req_id, columns)
     }
 
+    /// Returns the peer each column of this batch was requested from.
+    ///
+    /// Note: this assumes that only 1 peer is responsible for a column with a batch.
+    pub fn column_to_peer(&self) -> HashMap<ColumnIndex, PeerId> {
+        self.column_peers
+            .iter()
+            .flat_map(|(id, columns)| columns.iter().map(|column| (*column, id.peer)))
+            .collect()
+    }
+
     pub fn responses(
         &mut self,
     ) -> Option<Result<DataColumnSidecarList<T::EthSpec>, CouplingError>> {
         let mut received_columns_for_slot: HashMap<Slot, DataColumnSidecarList<T::EthSpec>> =
             HashMap::new();
-        let mut column_to_peer_id: HashMap<u64, PeerId> = HashMap::new();
-
         for req in self.requests.values() {
             let Some(columns) = req.to_finished() else {
                 return None;
@@ -82,13 +93,7 @@ impl<T: BeaconChainTypes> RangeDataColumnBatchRequest<T> {
             }
         }
 
-        // Note: this assumes that only 1 peer is responsible for a column
-        // with a batch.
-        for (id, columns) in self.column_peers.iter() {
-            for column in columns {
-                column_to_peer_id.insert(*column, id.peer);
-            }
-        }
+        let column_to_peer_id = self.column_to_peer();
 
         // An "attempt" is complete here after we have received a response for all the
         // requests we made. i.e. `req.to_finished()` returns Some for all requests.

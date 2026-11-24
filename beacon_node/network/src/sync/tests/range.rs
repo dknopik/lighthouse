@@ -22,11 +22,14 @@ use super::lookups::SimulateConfig;
 use super::*;
 use crate::status::ToStatusMessage;
 use crate::sync::{
-    SyncMessage, block_sidecar_coupling::CouplingError, manager::SLOT_IMPORT_TOLERANCE,
-    network_context::RpcResponseError, range_sync::RangeSyncType,
+    SyncMessage,
+    block_sidecar_coupling::CouplingError,
+    manager::{CustodyBatchProcessResult, SLOT_IMPORT_TOLERANCE},
+    network_context::RpcResponseError,
+    range_sync::RangeSyncType,
 };
 use lighthouse_network::{
-    PeerId, SyncInfo,
+    PeerAction, PeerId, SyncInfo,
     rpc::{
         RPCError, RequestType,
         methods::{DataColumnsByRangeRequest, StatusMessageV2},
@@ -350,6 +353,42 @@ impl TestRig {
             "expected DataColumnPeerFailure, got {response:?}",
         );
         assert_eq!(context.custody_backfill_batch_request_count(), 0);
+    }
+
+    fn assert_custody_backfill_processing_failure_penalizes_faulty_peer(&mut self) {
+        let honest_peer = self.new_connected_supernode_peer();
+        let faulty_peer = self.new_connected_supernode_peer();
+        let epoch = Epoch::new(0);
+        let (honest_column, faulty_column) = (0, 1);
+
+        // The honest peer is the one recorded on the batch, it must not take the blame.
+        self.sync_manager
+            .custody_backfill_sync()
+            .insert_test_processing_batch(
+                epoch,
+                honest_peer,
+                HashMap::from([(honest_column, honest_peer), (faulty_column, faulty_peer)]),
+            );
+        self.send_sync_message(SyncMessage::CustodyBatchProcessed {
+            result: CustodyBatchProcessResult::Error {
+                peer_action: Some(PeerAction::LowToleranceError),
+                faulty_columns: vec![faulty_column],
+            },
+            batch_id: CustodyBackfillBatchId { epoch, run_id: 0 },
+        });
+
+        let mut penalized_peers = vec![];
+        while let Ok(peer_id) = self.pop_received_network_event(|event| match event {
+            NetworkMessage::ReportPeer {
+                peer_id,
+                msg: "custody_backfill_batch_failed",
+                ..
+            } => Some(*peer_id),
+            _ => None,
+        }) {
+            penalized_peers.push(peer_id);
+        }
+        assert_eq!(penalized_peers, vec![faulty_peer]);
     }
 
     fn assert_custody_backfill_requests_have_disjoint_columns(&mut self) {
@@ -860,6 +899,17 @@ async fn custody_backfill_entry_cleaned_up_on_peer_failure() {
     }
     r.assert_custody_backfill_peer_failure_cleans_up_request()
         .await;
+}
+
+/// A custody backfill batch that fails processing penalizes only the peer that served the faulty
+/// column.
+#[tokio::test]
+async fn custody_backfill_processing_failure_penalizes_faulty_peer() {
+    let mut r = TestRig::default();
+    if r.fork_name != ForkName::Fulu {
+        return;
+    }
+    r.assert_custody_backfill_processing_failure_penalizes_faulty_peer();
 }
 
 /// Custody backfill sends each peer only its assigned columns.

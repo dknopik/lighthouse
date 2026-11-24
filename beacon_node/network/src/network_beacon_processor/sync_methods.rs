@@ -406,6 +406,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     HistoricalDataColumnError::NoBlockFound {
                         data_column_block_root,
                         expected_block_root,
+                        ..
                     } => {
                         debug!(
                             error = "no_block_found",
@@ -462,7 +463,28 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                         None
                     }
                 };
-                CustodyBatchProcessResult::Error { peer_action }
+                // The columns that caused the failure. Sync penalizes the peers that served them.
+                let faulty_columns = match e {
+                    HistoricalDataColumnError::NoBlockFound { column_index, .. } => {
+                        vec![column_index]
+                    }
+                    HistoricalDataColumnError::MissingDataColumns {
+                        missing_slots_and_data_columns,
+                    } => missing_slots_and_data_columns
+                        .into_iter()
+                        .map(|(_, column_index)| column_index)
+                        .collect(),
+                    HistoricalDataColumnError::InvalidKzg { column_index, .. } => {
+                        column_index.into_iter().collect()
+                    }
+                    HistoricalDataColumnError::BeaconChainError(_)
+                    | HistoricalDataColumnError::IndexOutOfBounds
+                    | HistoricalDataColumnError::StoreError(_) => vec![],
+                };
+                CustodyBatchProcessResult::Error {
+                    peer_action,
+                    faulty_columns,
+                }
             }
         };
         self.send_sync_message(SyncMessage::CustodyBatchProcessed { result, batch_id });

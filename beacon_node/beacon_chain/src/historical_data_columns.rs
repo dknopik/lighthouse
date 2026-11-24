@@ -14,6 +14,7 @@ use types::{ColumnIndex, DataColumnSidecarList, Epoch, EthSpec, Hash256, KzgComm
 pub enum HistoricalDataColumnError {
     // The provided data column sidecar pertains to a block that doesn't exist in the database.
     NoBlockFound {
+        column_index: ColumnIndex,
         data_column_block_root: Hash256,
         expected_block_root: Hash256,
     },
@@ -114,6 +115,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                     }
                     if block_root != data_column.block_root() {
                         return Err(HistoricalDataColumnError::NoBlockFound {
+                            column_index: *data_column.index(),
                             data_column_block_root: data_column.block_root(),
                             expected_block_root: block_root,
                         });
